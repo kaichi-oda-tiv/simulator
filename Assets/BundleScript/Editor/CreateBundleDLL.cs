@@ -15,8 +15,6 @@ namespace BundleScript
 
         bool importUnityEngineDLL = true;
 
-        Vector2 scroll;
-
         public CreateBundleDLL()
         {
             editorPath = Path.GetDirectoryName(EditorApplication.applicationPath);

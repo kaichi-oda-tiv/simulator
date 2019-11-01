@@ -14,12 +14,17 @@ namespace BundleScript
         Dictionary<string, List<string>> treeAttributeList = null;
         public GetAttribute(GameObject active = null)
         {
-            var obj = active ?? Selection.activeGameObject;
+            this.active = active ?? Selection.activeGameObject;
         }
 
         void Initialize(GameObject active)
         {
-            GetAttributeScripts(active);
+            GetAttributeScripts<AssetBundleScriptAttribute>(active);
+        }
+
+        public Dictionary<string, List<string>> GetAttributeScripts(GameObject root = null)
+        {
+            return GetAttributeScripts<AssetBundleScriptAttribute>(root);
         }
 
         /// <summary>
@@ -27,7 +32,7 @@ namespace BundleScript
         /// </summary>
         /// <param name="root"></param>
         /// <returns>Dictionary<string,List<string>></returns>
-        public Dictionary<string, List<string>> GetAttributeScripts(GameObject root = null)
+        public Dictionary<string, List<string>> GetAttributeScripts<T>(GameObject root = null)
         {
             if (root == null)
             {
@@ -39,10 +44,10 @@ namespace BundleScript
             foreach (var c in list)
             {
                 var type = c.GetType();
-                var attr = type.GetCustomAttributes(typeof(AssetBundleScriptAttribute), true);
-                if (attr.Length < 1)
+                var attr = type.GetCustomAttributes(typeof(T), true);
+                if (!attr.Any())
                 {
-                    Debug.Log("Custom Attribute Class Not found...");
+                    continue;
                 }
 
                 string tree = "";
@@ -56,14 +61,20 @@ namespace BundleScript
                     }
                 }
 
+                string className = type.Name;
+                if (!string.IsNullOrEmpty(type.Namespace))
+                {
+                    className = $"{type.Namespace}.{className}";
+                }
+
                 // treeがkeyでattrがvaluesのdic
                 if (attributeDatas.ContainsKey(tree))
                 {
-                    attributeDatas[tree].Add(type.Name);
+                    attributeDatas[tree].Add(className);
                 }
                 else
                 {
-                    attributeDatas.Add(tree, new List<string> { type.Name });
+                    attributeDatas.Add(tree, new List<string> { className });
                 }
 
             }

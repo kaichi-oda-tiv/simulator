@@ -84,7 +84,7 @@ namespace BundleScript
             return attributeDatas;
         }
 
-        public string ToJSON()
+        public override string ToString()
         {
             return ToJSON(treeAttributeList);
         }

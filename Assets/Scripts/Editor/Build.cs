@@ -111,7 +111,7 @@ namespace Simulator.Editor
                 else
                 {
                     EditorGUI.BeginDisabledGroup(true);
-                    GUILayout.Toggle(false, $"{name} (missing Vehicles/{name}/{name}.{PrefabExtension} file)");
+                    GUILayout.Toggle(false, $"{name} (missing v/{name}/{name}.{PrefabExtension} file)");
                     EditorGUI.EndDisabledGroup();
                 }
             }
@@ -214,7 +214,6 @@ namespace Simulator.Editor
             Directory.CreateDirectory(folder);
 
             var envManifests = new List<Manifest>();
-            var vehicleManifests = new List<Manifest>();
 
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
             {
@@ -274,28 +273,7 @@ namespace Simulator.Editor
                 }
             }
 
-            foreach (var name in vehicles)
-            {
-                var prefab = Path.Combine("Assets", "External", "Vehicles", name, $"{name}.{PrefabExtension}");
-                VehicleInfo info = AssetDatabase.LoadAssetAtPath<GameObject>(prefab).GetComponent<VehicleInfo>();
-                if (info == null)
-                {
-                    throw new Exception($"Build failed: Vehicle info on {name} not found. Please add a VehicleInfo component and rebuild.");
-                }
 
-                var manifest = new Manifest
-                {
-                    assetName = name,
-                    bundleGuid = Guid.NewGuid().ToString(),
-                    bundleFormat = BundleConfig.BundleFormatVersion,
-                    description = info.Description,
-                    licenseName = info.LicenseName,
-                    authorName = "",
-                    authorUrl = "",
-                };
-
-                vehicleManifests.Add(manifest);
-            }
 
             foreach (var manifest in envManifests)
             {
@@ -364,6 +342,47 @@ namespace Simulator.Editor
                 }
             }
 
+
+            BuildVehiclesBundle(folder, vehicles);
+        }
+
+        public static void BuildVehiclesBundle(string folder, List<string> vehicles, System.Action<ZipFile> appendAction = null)
+        {
+            {
+                string vs = "";
+                foreach (var v in vehicles)
+                {
+                    vs += $"{v}\n";
+                }
+
+                Debug.Log($"vehicles : {folder}\n{vs}");
+            }
+            var vehicleManifests = new List<Manifest>();
+
+            foreach (var name in vehicles)
+            {
+
+                var prefab = Path.Combine("Assets", "External", "Vehicles", name, $"{name}.{PrefabExtension}");
+                VehicleInfo info = AssetDatabase.LoadAssetAtPath<GameObject>(prefab).GetComponent<VehicleInfo>();
+                if (info == null)
+                {
+                    throw new Exception($"Build failed: Vehicle info on {name} not found. Please add a VehicleInfo component and rebuild.");
+                }
+
+                var manifest = new Manifest
+                {
+                    assetName = name,
+                    bundleGuid = Guid.NewGuid().ToString(),
+                    bundleFormat = BundleConfig.BundleFormatVersion,
+                    description = info.Description,
+                    licenseName = info.LicenseName,
+                    authorName = "",
+                    authorUrl = "",
+                };
+
+                vehicleManifests.Add(manifest);
+            }
+
             foreach (var manifest in vehicleManifests)
             {
                 try
@@ -410,6 +429,10 @@ namespace Simulator.Editor
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, linuxBuild.assetBundleName)), linuxBuild.assetBundleName, CompressionMethod.Stored, true);
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, windowsBuild.assetBundleName)), windowsBuild.assetBundleName, CompressionMethod.Stored, true);
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, "manifest")), "manifest", CompressionMethod.Stored, true);
+                            if (appendAction != null)
+                            {
+                                appendAction(archive);
+                            }
                             archive.CommitUpdate();
                             archive.Close();
                         }
@@ -431,6 +454,8 @@ namespace Simulator.Editor
 
                 }
             }
+
+
         }
 
         static void SaveBundleLinks(string filename, string bundleFolder, List<string> environments, List<string> vehicles)

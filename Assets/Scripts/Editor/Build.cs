@@ -346,7 +346,7 @@ namespace Simulator.Editor
             BuildVehiclesBundle(folder, vehicles);
         }
 
-        public static void BuildVehiclesBundle(string folder, List<string> vehicles, System.Action<ZipFile> appendAction = null)
+        public static void BuildVehiclesBundle(string folder, List<string> vehicles, System.Action<string, ZipFile> appendAction = null)
         {
             {
                 string vs = "";
@@ -431,7 +431,7 @@ namespace Simulator.Editor
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, "manifest")), "manifest", CompressionMethod.Stored, true);
                             if (appendAction != null)
                             {
-                                appendAction(archive);
+                                appendAction(manifest.bundleGuid, archive);
                             }
                             archive.CommitUpdate();
                             archive.Close();

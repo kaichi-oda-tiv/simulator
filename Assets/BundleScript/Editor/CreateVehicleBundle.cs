@@ -81,47 +81,55 @@ namespace BundleScript
                 var attr = ga.GetAttributeScripts<AssetBundleScriptAttribute>();
 
                 // MEMO:truenameで保存するかそれとも別の名前(ex. map.json)で固定してしまうか?
-                var mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
-                SaveTextAsset(mapJsonPath, ga.ToString());
-
-                // 2. class名からdllを作る
-                var createdll = new CreateBundleDLL();
+                string mapJsonPath = "";
                 List<string> genDlls = new List<string>();
-                foreach (var kv in attr)
+                if (attr.Any())
                 {
-                    // TODO:attrを元にjsonを吐く
-                    string s = $"{kv.Key}\n";
-                    kv.Value.ForEach(x => { s += $"{x}\n"; });
-                    Debug.Log(s);
-                    kv.Value.ForEach(x =>
+                    mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
+                    SaveTextAsset(mapJsonPath, ga.ToString());
+
+                    // 2. class名からdllを作る
+                    var createdll = new CreateBundleDLL();
+                    foreach (var kv in attr)
                     {
-                        var t = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(bx => $"{bx.Namespace}.{bx.Name}".EndsWith(x)).FirstOrDefault();
-                        var tname = t == null ? "null!" : t.Name;
-                        Debug.Log($"{x} , {tname}");
-                        var list = editObj.GetComponentsInChildren(t, true);
-
-                        foreach (var c in list)
+                        // TODO:attrを元にjsonを吐く
+                        string s = $"{kv.Key}\n";
+                        kv.Value.ForEach(x => { s += $"{x}\n"; });
+                        Debug.Log(s);
+                        kv.Value.ForEach(x =>
                         {
-                            var mono = MonoScript.FromMonoBehaviour(c as MonoBehaviour);
-                            var ap = AssetDatabase.GetAssetPath(mono);
+                            var t = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(bx => $"{bx.Namespace}.{bx.Name}".EndsWith(x)).FirstOrDefault();
+                            var tname = t == null ? "null!" : t.Name;
+                            Debug.Log($"{x} , {tname}");
+                            var list = editObj.GetComponentsInChildren(t, true);
 
-                            genDlls.Add(Path.GetFileNameWithoutExtension(ap));
+                            foreach (var c in list)
+                            {
+                                var mono = MonoScript.FromMonoBehaviour(c as MonoBehaviour);
+                                var ap = AssetDatabase.GetAssetPath(mono);
 
-                            createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
-                            GameObject.DestroyImmediate(c, true);
-                        }
-                    });
+                                genDlls.Add(Path.GetFileNameWithoutExtension(ap));
 
+                                createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
+                                GameObject.DestroyImmediate(c, true);
+                            }
+                        });
+
+                    }
                 }
 
                 var assetBundlesLocation = Path.Combine(Application.dataPath, "..", "AssetBundles");
 
 
                 // assetbundleを作る
-                Simulator.Editor.Build.BuildVehiclesBundle(assetBundlesLocation, new List<string> { trueName }, (archive) =>
+                Simulator.Editor.Build.BuildVehiclesBundle(assetBundlesLocation, new List<string> { trueName }, (guid, archive) =>
                 {
+                    if (string.IsNullOrEmpty(mapJsonPath))
+                    {
+                        return;
+                    }
                     // jsonを追加
-                    archive.Add(new StaticDiskDataSource(Path.GetFullPath(mapJsonPath)), Path.GetFileName(mapJsonPath), CompressionMethod.Stored, true);
+                    archive.Add(new StaticDiskDataSource(Path.GetFullPath(mapJsonPath)), "dllmap.json", CompressionMethod.Stored, true);
 
                     // dll追加
                     foreach (var dllname in genDlls)

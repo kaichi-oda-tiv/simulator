@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection;
 using UnityEngine;
 using UnityEditor;
+using ICSharpCode.SharpZipLib.Zip;
 
 namespace BundleScript
 {
@@ -63,69 +64,106 @@ namespace BundleScript
             var tempPath = Path.Combine(rootDir, tempFile);
 
             string log = "";
-
-            log = AssetDatabase.CopyAsset(rootPath, copyPath).ToString();
-            Debug.Log($"CopyAsset({rootPath},{copyPath}) => {log}");
-
-            log = AssetDatabase.RenameAsset(rootPath, Path.GetFileNameWithoutExtension(tempFile));
-            Debug.Log($"RenameAsset({rootPath},{Path.GetFileNameWithoutExtension(tempFile)} => {log}");
-            log = AssetDatabase.RenameAsset(copyPath, trueName);
-            Debug.Log($"RenameAsset({copyPath},{trueName}) => {log}");
-
-            // main処理
-            var editObj = AssetDatabase.LoadAssetAtPath<GameObject>(rootPath);
-            var ga = new GetAttribute(editObj);
-            var attr = ga.GetAttributeScripts<AssetBundleScriptAttribute>();
-
-            SaveTextAsset(Path.Combine(rootDir, $"_{trueName}.json"), ga.ToString());
-
-            // 2. class名からdllを作る
-            var createdll = new CreateBundleDLL();
-            foreach (var kv in attr)
+            try
             {
-                // TODO:attrを元にjsonを吐く
-                string s = $"{kv.Key}\n";
-                kv.Value.ForEach(x => { s += $"{x}\n"; });
-                Debug.Log(s);
-                kv.Value.ForEach(x =>
+
+                log = AssetDatabase.CopyAsset(rootPath, copyPath).ToString();
+                Debug.Log($"CopyAsset({rootPath},{copyPath}) => {log}");
+
+                log = AssetDatabase.RenameAsset(rootPath, Path.GetFileNameWithoutExtension(tempFile));
+                Debug.Log($"RenameAsset({rootPath},{Path.GetFileNameWithoutExtension(tempFile)} => {log}");
+                log = AssetDatabase.RenameAsset(copyPath, trueName);
+                Debug.Log($"RenameAsset({copyPath},{trueName}) => {log}");
+
+                // main処理
+                var editObj = AssetDatabase.LoadAssetAtPath<GameObject>(rootPath);
+                var ga = new GetAttribute(editObj);
+                var attr = ga.GetAttributeScripts<AssetBundleScriptAttribute>();
+
+                // MEMO:truenameで保存するかそれとも別の名前(ex. map.json)で固定してしまうか?
+                var mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
+                SaveTextAsset(mapJsonPath, ga.ToString());
+
+                // 2. class名からdllを作る
+                var createdll = new CreateBundleDLL();
+                List<string> genDlls = new List<string>();
+                foreach (var kv in attr)
                 {
-                    var t = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(bx => $"{bx.Namespace}.{bx.Name}".EndsWith(x)).FirstOrDefault();
-                    var tname = t == null ? "null!" : t.Name;
-                    Debug.Log($"{x} , {tname}");
-                    var list = editObj.GetComponentsInChildren(t, true);
-
-                    foreach (var c in list)
+                    // TODO:attrを元にjsonを吐く
+                    string s = $"{kv.Key}\n";
+                    kv.Value.ForEach(x => { s += $"{x}\n"; });
+                    Debug.Log(s);
+                    kv.Value.ForEach(x =>
                     {
-                        var mono = MonoScript.FromMonoBehaviour(c as MonoBehaviour);
-                        var ap = AssetDatabase.GetAssetPath(mono);
+                        var t = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(bx => $"{bx.Namespace}.{bx.Name}".EndsWith(x)).FirstOrDefault();
+                        var tname = t == null ? "null!" : t.Name;
+                        Debug.Log($"{x} , {tname}");
+                        var list = editObj.GetComponentsInChildren(t, true);
 
-                        createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
-                        GameObject.DestroyImmediate(c, true);
+                        foreach (var c in list)
+                        {
+                            var mono = MonoScript.FromMonoBehaviour(c as MonoBehaviour);
+                            var ap = AssetDatabase.GetAssetPath(mono);
+
+                            genDlls.Add(Path.GetFileNameWithoutExtension(ap));
+
+                            createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
+                            GameObject.DestroyImmediate(c, true);
+                        }
+                    });
+
+                }
+
+                var assetBundlesLocation = Path.Combine(Application.dataPath, "..", "AssetBundles");
+
+
+                // assetbundleを作る
+                Simulator.Editor.Build.BuildVehiclesBundle(assetBundlesLocation, new List<string> { trueName }, (archive) =>
+                {
+                    // jsonを追加
+                    archive.Add(new StaticDiskDataSource(Path.GetFullPath(mapJsonPath)), Path.GetFileName(mapJsonPath), CompressionMethod.Stored, true);
+
+                    // dll追加
+                    foreach (var dllname in genDlls)
+                    {
+                        var p = Path.Combine(rootDir, $"{dllname}.bytes");
+                        archive.Add(new StaticDiskDataSource(Path.GetFullPath(p)), Path.GetFileName(p), CompressionMethod.Stored, true);
                     }
+
                 });
-
             }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+            }
+            finally
+            {
 
+                // 後始末
+                log = AssetDatabase.DeleteAsset(rootPath).ToString();
+                Debug.Log($"DeleteAsset({rootPath}) => {log}");
 
-            // TODO:ここでassetbundleを作る
-
-            // 後始末
-            log = AssetDatabase.DeleteAsset(rootPath).ToString();
-            Debug.Log($"DeleteAsset({rootPath}) => {log}");
-
-            log = AssetDatabase.RenameAsset(tempPath, Path.GetFileNameWithoutExtension(rootPath));
-            Debug.Log($"RenameAsset({tempPath},{Path.GetFileNameWithoutExtension(rootPath)}) => {log}");
+                log = AssetDatabase.RenameAsset(tempPath, Path.GetFileNameWithoutExtension(rootPath));
+                Debug.Log($"RenameAsset({tempPath},{Path.GetFileNameWithoutExtension(rootPath)}) => {log}");
+            }
         }
 
 
         void SaveTextAsset(string path, string data)
         {
-            FileStream fs = new FileStream(path, FileMode.OpenOrCreate);
-            StreamWriter sw = new StreamWriter(fs);
+            using (FileStream fs = new FileStream(path, FileMode.OpenOrCreate))
+            {
+                using (StreamWriter sw = new StreamWriter(fs))
+                {
+                    sw.WriteLine(data);
 
-
-
+                    sw.Flush();
+                }
+            }
         }
 
+
+
     }
+
 }

@@ -563,6 +563,51 @@ namespace Simulator
                                 }
 
                                 agentConfig.Prefab = vehicleBundle.LoadAsset<GameObject>(vehicleAssets[0]);
+
+                                // TODO:mapとdllのload
+                                {
+                                    var ze = zip.GetEntry("dllmap.json");
+                                    if (ze != null)
+                                    {
+                                        byte[] buf = new byte[ze.Size];
+                                        zip.GetInputStream(ze).Read(buf, 0, (int)ze.Size);
+
+                                        string json = Encoding.UTF8.GetString(buf);
+                                        Debug.Log(json);
+
+                                        var mapper = SimpleJSON.JSON.Parse(json);
+
+                                        foreach (var key in mapper.Keys)
+                                        {
+                                            string package = "";
+                                            foreach (var v in mapper[key].Values)
+                                            {
+                                                package += $"{v.Value.ToString()}\n";
+
+                                                // TODO:ここでassembly.loadしてaddcomponentする
+                                                var packageName = v.Value.Split('.').Last();
+                                                var dllEntry = zip.GetEntry($"{packageName}.bytes");
+                                                if (dllEntry != null)
+                                                {
+                                                    Debug.Log($"{packageName}.bytes / {dllEntry.Size}");
+                                                    byte[] dllbuf = new byte[dllEntry.Size];
+                                                    zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
+                                                    var dll = System.Reflection.Assembly.Load(dllbuf);
+                                                    var tt = agentConfig.Prefab.transform.Find(key);
+
+                                                    // FIXME:key.split('/').First()がhierarchyにあるprefab名と違うのでreplaceする
+                                                    Debug.Log($"{key} : {tt}");
+                                                    if (tt != null)
+                                                    {
+                                                        tt.gameObject.AddComponent(dll.GetType());
+                                                    }
+                                                }
+                                            }
+                                            Debug.Log($"dlls : {key}:{mapper[key]}\n{package}");
+                                        }
+                                    }
+                                }
+
                             }
                             finally
                             {

@@ -584,26 +584,28 @@ namespace Simulator
                                             {
                                                 package += $"{v.Value.ToString()}\n";
 
-                                                // TODO:ここでassembly.loadしてaddcomponentする
+                                                // ここでassembly.loadしてaddcomponentする
                                                 var packageName = v.Value.Split('.').Last();
                                                 var dllEntry = zip.GetEntry($"{packageName}.bytes");
                                                 if (dllEntry != null)
                                                 {
-                                                    Debug.Log($"{packageName}.bytes / {dllEntry.Size}");
                                                     byte[] dllbuf = new byte[dllEntry.Size];
                                                     zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
                                                     var dll = System.Reflection.Assembly.Load(dllbuf);
-                                                    var tt = agentConfig.Prefab.transform.Find(key);
 
-                                                    // FIXME:key.split('/').First()がhierarchyにあるprefab名と違うのでreplaceする
-                                                    Debug.Log($"{key} : {tt}");
+                                                    var prefabrootname = key.Split('/').First();
+
+                                                    var treeTbl = key.Split('/').ToList();
+                                                    treeTbl.RemoveAt(0);
+                                                    var ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
+
+                                                    var tt = agentConfig.Prefab.transform.Find(ntree);
                                                     if (tt != null)
                                                     {
-                                                        tt.gameObject.AddComponent(dll.GetType());
+                                                        tt.gameObject.AddComponent(dll.GetType(v));
                                                     }
                                                 }
                                             }
-                                            Debug.Log($"dlls : {key}:{mapper[key]}\n{package}");
                                         }
                                     }
                                 }

@@ -403,6 +403,10 @@ namespace Simulator
                                 {
                                     if (op.isDone)
                                     {
+                                        foreach (var obj in SceneManager.GetActiveScene().GetRootGameObjects())
+                                        {
+                                            LoadDll(obj, zip, "dllmap.json");
+                                        }
                                         textureBundle.Unload(false);
                                         mapBundle.Unload(false);
                                         zip.Close();
@@ -564,52 +568,8 @@ namespace Simulator
 
                                 agentConfig.Prefab = vehicleBundle.LoadAsset<GameObject>(vehicleAssets[0]);
 
-                                // TODO:mapとdllのload
-                                {
-                                    var ze = zip.GetEntry("dllmap.json");
-                                    if (ze != null)
-                                    {
-                                        byte[] buf = new byte[ze.Size];
-                                        zip.GetInputStream(ze).Read(buf, 0, (int)ze.Size);
-
-                                        string json = Encoding.UTF8.GetString(buf);
-                                        Debug.Log(json);
-
-                                        var mapper = SimpleJSON.JSON.Parse(json);
-
-                                        foreach (var key in mapper.Keys)
-                                        {
-                                            string package = "";
-                                            foreach (var v in mapper[key].Values)
-                                            {
-                                                package += $"{v.Value.ToString()}\n";
-
-                                                // ここでassembly.loadしてaddcomponentする
-                                                var packageName = v.Value.Split('.').Last();
-                                                var dllEntry = zip.GetEntry($"{packageName}.bytes");
-                                                if (dllEntry != null)
-                                                {
-                                                    byte[] dllbuf = new byte[dllEntry.Size];
-                                                    zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
-                                                    var dll = System.Reflection.Assembly.Load(dllbuf);
-
-                                                    var prefabrootname = key.Split('/').First();
-
-                                                    var treeTbl = key.Split('/').ToList();
-                                                    treeTbl.RemoveAt(0);
-                                                    var ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
-
-                                                    var tt = agentConfig.Prefab.transform.Find(ntree);
-                                                    if (tt != null)
-                                                    {
-                                                        tt.gameObject.AddComponent(dll.GetType(v));
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
+                                // load dllmap and append dll
+                                LoadDll(agentConfig.Prefab, zip, "dllmap.json");
                             }
                             finally
                             {
@@ -672,6 +632,57 @@ namespace Simulator
                     NotificationManager.SendNotification("simulation", SimulationResponse.Create(simulation), simulation.Owner);
 
                     ResetLoaderScene();
+                }
+            }
+        }
+
+        public static void LoadDll(GameObject root, ZipFile zip, string mapjsonname)
+        {
+            var ze = zip.GetEntry(mapjsonname);
+            if (ze == null)
+            {
+                return;
+            }
+
+            byte[] buf = new byte[ze.Size];
+            zip.GetInputStream(ze).Read(buf, 0, (int)ze.Size);
+
+            string json = Encoding.UTF8.GetString(buf);
+            var mapper = SimpleJSON.JSON.Parse(json);
+
+            foreach (var key in mapper.Keys)
+            {
+                var prefabrootname = key.Split('/').First();
+                if (prefabrootname != root.name)
+                {
+                    return;
+                }
+
+                var treeTbl = key.Split('/').ToList();
+                treeTbl.RemoveAt(0);
+                var ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
+                string package = "";
+                foreach (var v in mapper[key].Values)
+                {
+                    package += $"{v.Value.ToString()}\n";
+
+                    // ここでassembly.loadしてaddcomponentする
+                    var packageName = v.Value.Split('.').Last();
+                    var dllEntry = zip.GetEntry($"{packageName}.bytes");
+                    if (dllEntry == null)
+                    {
+                        continue;
+                    }
+                    byte[] dllbuf = new byte[dllEntry.Size];
+                    zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
+                    var dll = System.Reflection.Assembly.Load(dllbuf);
+
+
+                    var tt = root.transform.Find(ntree);
+                    if (tt != null)
+                    {
+                        tt.gameObject.AddComponent(dll.GetType(v));
+                    }
                 }
             }
         }

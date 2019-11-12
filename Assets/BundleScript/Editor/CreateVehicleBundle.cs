@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Linq;
 using System.IO;
 using System.Reflection;
@@ -23,9 +24,62 @@ namespace BundleScript
                 if (vi != null)
                 {
                     var cvb = new CreateVehicleBundle();
+                    cvb.GetImportDll(vi.gameObject);
                     cvb.GenerateBundle2(Selection.activeGameObject);
                 }
             }
+        }
+
+        [MenuItem("Assets/FindVehicleroperty", false, 20)]
+        static void FindProperty()
+        {
+            if (Selection.activeGameObject != null)
+            {
+                var vi = Selection.activeGameObject.GetComponent<Simulator.VehicleInfo>();
+                if (vi != null)
+                {
+                    var cvb = new CreateVehicleBundle();
+                    var list = cvb.GetImportDll(vi.gameObject);
+                    string s = $"list:{list.Count}\n";
+                    foreach (var p in list)
+                    {
+                        s += $"{p}\n";
+                    }
+                    Debug.Log(s);
+                }
+            }
+        }
+
+        IEnumerable<string> GetDllPathFromDllImportAttr(DllImportAttribute attr)
+        {
+            return AssetDatabase.FindAssets(attr.Value)
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .Select(x => AssetDatabase.GUIDToAssetPath(x));
+        }
+
+        List<string> GetImportDll(GameObject root)
+        {
+            List<string> r0 = new List<string>();
+
+            var attr = root.GetComponentsInChildren<MonoBehaviour>();
+            foreach (var a in attr)
+            {
+                r0.AddRange(GetImportDllSingle(a.GetType()));
+            }
+
+            return r0.Distinct().ToList();
+        }
+
+        List<string> GetImportDllSingle(Type t)
+        {
+            List<string> r0 = new List<string>();
+            BindingFlags bf = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+
+            r0.AddRange(t.GetMethods(bf).SelectMany(x => x.GetCustomAttributes<DllImportAttribute>(true)).SelectMany(x => GetDllPathFromDllImportAttr(x)));
+            r0.AddRange(t.GetProperties(bf).SelectMany(x => x.GetCustomAttributes<DllImportAttribute>(true)).SelectMany(x => GetDllPathFromDllImportAttr(x)));
+            r0.AddRange(t.GetFields(bf).SelectMany(x => x.GetCustomAttributes<DllImportAttribute>(true)).SelectMany(x => GetDllPathFromDllImportAttr(x)));
+
+            return r0;
         }
 
         void GenerateBundle2(GameObject root, [System.Runtime.CompilerServices.CallerFilePath] string fpath = "")
@@ -80,27 +134,27 @@ namespace BundleScript
                 var ga = new GetAttribute(editObj);
                 var attr = ga.GetAttributeScripts<AssetBundleScriptAttribute>();
 
-                // MEMO:truenameで保存するかそれとも別の名前(ex. map.json)で固定してしまうか?
+                var dllimports = GetImportDll(root); // use dllimport methods
+
                 string mapJsonPath = "";
                 List<string> genDlls = new List<string>();
                 if (attr.Any())
                 {
                     mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
-                    SaveTextAsset(mapJsonPath, ga.ToString());
+                    var attrList = ga.GetAttributeScripts();
+
+                    attrList.Add("", dllimports.Select(x => $"{Path.GetFileNameWithoutExtension(x)}.bytes").ToList());
+
+                    SaveTextAsset(mapJsonPath, ga.ToJSON(attrList));
 
                     // 2. class名からdllを作る
                     var createdll = new CreateBundleDLL();
                     foreach (var kv in attr)
                     {
-                        // TODO:attrを元にjsonを吐く
-                        string s = $"{kv.Key}\n";
-                        kv.Value.ForEach(x => { s += $"{x}\n"; });
-                        Debug.Log(s);
                         kv.Value.ForEach(x =>
                         {
                             var t = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).Where(bx => $"{bx.Namespace}.{bx.Name}".EndsWith(x)).FirstOrDefault();
                             var tname = t == null ? "null!" : t.Name;
-                            Debug.Log($"{x} , {tname}");
                             var list = editObj.GetComponentsInChildren(t, true);
 
                             foreach (var c in list)
@@ -120,7 +174,6 @@ namespace BundleScript
 
                 var assetBundlesLocation = Path.Combine(Application.dataPath, "..", "AssetBundles");
 
-
                 // assetbundleを作る
                 Simulator.Editor.Build.BuildVehiclesBundle(assetBundlesLocation, new List<string> { trueName }, (guid, archive) =>
                 {
@@ -130,6 +183,12 @@ namespace BundleScript
                     }
                     // jsonを追加
                     archive.Add(new StaticDiskDataSource(Path.GetFullPath(mapJsonPath)), "dllmap.json", CompressionMethod.Stored, true);
+
+                    // use dllimport's plugin append
+                    foreach (var importeddll in dllimports)
+                    {
+                        archive.Add(new StaticDiskDataSource(Path.GetFullPath(importeddll)), $"{Path.GetFileNameWithoutExtension(importeddll)}.bytes", CompressionMethod.Stored, true);
+                    }
 
                     // dll追加
                     foreach (var dllname in genDlls)

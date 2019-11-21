@@ -143,8 +143,6 @@ namespace BundleScript
                     mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
                     var attrList = ga.GetAttributeScripts();
 
-                    attrList.Add("", dllimports.Select(x => $"{Path.GetFileNameWithoutExtension(x)}.bytes").ToList());
-
                     SaveTextAsset(mapJsonPath, ga.ToJSON(attrList));
 
                     // 2. class名からdllを作る
@@ -164,7 +162,7 @@ namespace BundleScript
 
                                 genDlls.Add(Path.GetFileNameWithoutExtension(ap));
 
-                                createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
+                                createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir), dllimports.Select(d => Path.GetFullPath(d)).ToList());
                                 GameObject.DestroyImmediate(c, true);
                             }
                         });
@@ -181,16 +179,10 @@ namespace BundleScript
                     {
                         return;
                     }
-                    // jsonを追加
+                    // add dllmapping json
                     archive.Add(new StaticDiskDataSource(Path.GetFullPath(mapJsonPath)), "dllmap.json", CompressionMethod.Stored, true);
 
-                    // use dllimport's plugin append
-                    foreach (var importeddll in dllimports)
-                    {
-                        archive.Add(new StaticDiskDataSource(Path.GetFullPath(importeddll)), $"{Path.GetFileNameWithoutExtension(importeddll)}.bytes", CompressionMethod.Stored, true);
-                    }
-
-                    // dll追加
+                    // add managed dll
                     foreach (var dllname in genDlls)
                     {
                         var p = Path.Combine(rootDir, $"{dllname}.bytes");

@@ -1,7 +1,7 @@
 {
     "name": "com.lgsvl.simulator",
     "displayName": "LGSVL-Simulator",
-    "version": "1.0.0",
+    "version": "0.0.1-test",
     "unity": "2019.1",
     "description": "\"https://www.lgsvlsimulator.com/\"",
     "keywords": ["autonomous","lgsvl"],

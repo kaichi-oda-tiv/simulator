@@ -1,0 +1,10 @@
+{
+    "name": "com.lgsvl.simulator",
+    "displayName": "LGSVL-Simulator",
+    "version": "2019.11",
+    "unity": "2019.1",
+    "description": "\"https://www.lgsvlsimulator.com/\"",
+    "keywords": ["autonomous","lgsvl"],
+    "category": "ProjectTemplate",
+    "dependencies": {}
+}

@@ -221,47 +221,41 @@ namespace Simulator.Editor
                 return;
             }
 
+            BuildEnvironmentBundle(folder, environments);
+            BuildVehiclesBundle(folder, vehicles);
+        }
+
+        public static void BuildEnvironmentBundle(string folder, List<string> environments, System.Action<string, ZipFile> appendAction = null)
+        {
             var currentScenes = new HashSet<Scene>();
             for (int i = 0; i < EditorSceneManager.loadedSceneCount; i++)
             {
                 currentScenes.Add(EditorSceneManager.GetSceneAt(i));
             }
 
+            var envManifests = new List<Manifest>();
+
             foreach (var name in environments)
             {
                 var scene = Path.Combine("Assets", "External", "Environments", name, $"{name}.{SceneExtension}");
-
                 Scene s = EditorSceneManager.OpenScene(scene, OpenSceneMode.Additive);
                 try
                 {
-                    Manifest? manifest = null;
 
-                    foreach (GameObject root in s.GetRootGameObjects())
+
+                    MapOrigin origin = s.GetRootGameObjects().Select(r => r.GetComponentInChildren<MapOrigin>()).Where(o => o != null).FirstOrDefault();
+                    if (origin != null)
                     {
-                        MapOrigin origin = root.GetComponentInChildren<MapOrigin>();
-                        if (origin != null)
+                        envManifests.Add(new Manifest
                         {
-                            manifest = new Manifest
-                            {
-                                assetName = name,
-                                bundleGuid = Guid.NewGuid().ToString(),
-                                bundleFormat = BundleConfig.BundleFormatVersion,
-                                description = origin.Description,
-                                licenseName = origin.LicenseName,
-                                authorName = "",
-                                authorUrl = "",
-                            };
-                            break;
-                        }
-                    }
-
-                    if (manifest.HasValue)
-                    {
-                        envManifests.Add(manifest.Value);
-                    }
-                    else
-                    {
-                        throw new Exception($"Build failed: MapOrigin on {name} not found. Please add a MapOrigin component.");
+                            assetName = name,
+                            bundleGuid = Guid.NewGuid().ToString(),
+                            bundleFormat = BundleConfig.BundleFormatVersion,
+                            description = origin.Description,
+                            licenseName = origin.LicenseName,
+                            authorName = "",
+                            authorUrl = "",
+                        });
                     }
                 }
                 finally
@@ -272,7 +266,6 @@ namespace Simulator.Editor
                     }
                 }
             }
-
 
 
             foreach (var manifest in envManifests)
@@ -321,6 +314,10 @@ namespace Simulator.Editor
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, linuxBuild.assetBundleName)), linuxBuild.assetBundleName, CompressionMethod.Stored, true);
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, windowsBuild.assetBundleName)), windowsBuild.assetBundleName, CompressionMethod.Stored, true);
                             archive.Add(new StaticDiskDataSource(Path.Combine(folder, "manifest")), "manifest", CompressionMethod.Stored, true);
+                            if (appendAction != null)
+                            {
+                                appendAction(manifest.bundleGuid, archive);
+                            }
                             archive.CommitUpdate();
                             archive.Close();
                         }
@@ -341,9 +338,6 @@ namespace Simulator.Editor
                     Array.ForEach(files, f => f.Delete());
                 }
             }
-
-
-            BuildVehiclesBundle(folder, vehicles);
         }
 
         public static void BuildVehiclesBundle(string folder, List<string> vehicles, System.Action<string, ZipFile> appendAction = null)

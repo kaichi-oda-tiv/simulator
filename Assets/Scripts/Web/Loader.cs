@@ -650,7 +650,28 @@ namespace Simulator
             string json = Encoding.UTF8.GetString(buf);
             var mapper = SimpleJSON.JSON.Parse(json);
 
-            foreach (var key in mapper.Keys)
+            // fixme: early load object
+            List<string> keys = new List<string>();
+            foreach (var k in mapper.Keys)
+            {
+                keys.Add(k);
+            }
+            var defaultEntryKeys = keys.Select(k => k.Split('/').First()).Where(k => k != root.name);
+            var behaviourKeys = keys.Where(k => !defaultEntryKeys.Contains(k));
+#if false
+            {
+                foreach (var key in defaultEntryKeys)
+                {
+                    foreach (var v in mapper[key].Values)
+                    {
+                        Debug.Log($"defaultEntryKeys:{root.name} / {key} / {v}");
+                        LoadDllCore(zip, v);
+                    }
+                }
+            }
+#endif // ~false
+
+            foreach (var key in behaviourKeys)
             {
                 var prefabrootname = key.Split('/').First();
                 if (prefabrootname != root.name)
@@ -660,7 +681,19 @@ namespace Simulator
 
                 var treeTbl = key.Split('/').ToList();
                 treeTbl.RemoveAt(0);
-                var ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
+                string ntree = "";
+                switch (treeTbl.Count)
+                {
+                    case 0:
+                        break;
+                    case 1:
+                        ntree = treeTbl[0];
+                        break;
+                    default:
+                        ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
+                        break;
+                }
+
                 string package = "";
                 foreach (var v in mapper[key].Values)
                 {
@@ -668,14 +701,11 @@ namespace Simulator
 
                     // ここでassembly.loadしてaddcomponentする
                     var packageName = v.Value.Split('.').Last();
-                    var dllEntry = zip.GetEntry($"{packageName}.bytes");
-                    if (dllEntry == null)
+                    var dll = LoadDllCore(zip, packageName);
+                    if (dll == null)
                     {
                         continue;
                     }
-                    byte[] dllbuf = new byte[dllEntry.Size];
-                    zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
-                    var dll = System.Reflection.Assembly.Load(dllbuf);
 
 
                     var tt = root.transform.Find(ntree);
@@ -685,6 +715,22 @@ namespace Simulator
                     }
                 }
             }
+        }
+
+        static System.Reflection.Assembly LoadDllCore(ZipFile zip, string dllName)
+        {
+            Debug.Log($"loadDLLCore({dllName})");
+            var dllEntry = zip.GetEntry($"{dllName}.bytes");
+            if (dllEntry == null)
+            {
+                return null;
+            }
+
+            byte[] dllbuf = new byte[dllEntry.Size];
+            zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
+            var dll = System.Reflection.Assembly.Load(dllbuf);
+
+            return dll;
         }
 
         public static void ResetLoaderScene()

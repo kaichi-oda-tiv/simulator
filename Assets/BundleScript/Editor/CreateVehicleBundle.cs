@@ -24,7 +24,6 @@ namespace BundleScript
                 if (vi != null)
                 {
                     var cvb = new CreateVehicleBundle();
-                    cvb.GetImportDll(vi.gameObject);
                     cvb.GenerateBundle2(Selection.activeGameObject);
                 }
             }
@@ -134,8 +133,6 @@ namespace BundleScript
                 var ga = new GetAttribute(editObj);
                 var attr = ga.GetAttributeScripts<AssetBundleScriptAttribute>();
 
-                var dllimports = GetImportDll(root); // use dllimport methods
-
                 string mapJsonPath = "";
                 List<string> genDlls = new List<string>();
                 if (attr.Any())
@@ -143,7 +140,7 @@ namespace BundleScript
                     mapJsonPath = Path.Combine(rootDir, $"_{trueName}.json");
                     var attrList = ga.GetAttributeScripts();
 
-                    SaveTextAsset(mapJsonPath, ga.ToJSON(attrList));
+                    CreateBundleUtil.SaveTextAsset(mapJsonPath, ga.ToJSON(attrList));
 
                     // 2. class名からdllを作る
                     var createdll = new CreateBundleDLL();
@@ -162,7 +159,7 @@ namespace BundleScript
 
                                 genDlls.Add(Path.GetFileNameWithoutExtension(ap));
 
-                                createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir), dllimports.Select(d => Path.GetFullPath(d)).ToList());
+                                createdll.CreateDLLSingle(packagePath, ap, Path.GetFullPath(rootDir));
                                 GameObject.DestroyImmediate(c, true);
                             }
                         });
@@ -206,23 +203,6 @@ namespace BundleScript
                 Debug.Log($"RenameAsset({tempPath},{Path.GetFileNameWithoutExtension(rootPath)}) => {log}");
             }
         }
-
-
-        void SaveTextAsset(string path, string data)
-        {
-            using (FileStream fs = new FileStream(path, FileMode.OpenOrCreate))
-            {
-                using (StreamWriter sw = new StreamWriter(fs))
-                {
-                    sw.WriteLine(data);
-
-                    sw.Flush();
-                }
-            }
-        }
-
-
-
     }
 
 }

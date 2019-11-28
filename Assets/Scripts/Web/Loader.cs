@@ -473,6 +473,10 @@ namespace Simulator
                                 {
                                     if (op.isDone)
                                     {
+                                        foreach (var obj in SceneManager.GetActiveScene().GetRootGameObjects())
+                                        {
+                                            LoadDll(obj, zip, "dllmap.json");
+                                        }
                                         textureBundle.Unload(false);
                                         mapBundle.Unload(false);
                                         zip.Close();
@@ -642,6 +646,8 @@ namespace Simulator
 
                                 agentConfig.Prefab = vehicleBundle.LoadAsset<GameObject>(vehicleAssets[0]);
                                 cachedVehicles.Add(agentConfig.Name, agentConfig.Prefab);
+
+                                LoadDll(agentConfig.Prefab, zip, "dllmap.json");
                             }
                             finally
                             {
@@ -704,6 +710,91 @@ namespace Simulator
                     ResetLoaderScene();
                 }
             }
+        }
+
+        public static void LoadDll(GameObject root, ZipFile zip, string mapjsonname)
+        {
+            var ze = zip.GetEntry(mapjsonname);
+            if (ze == null)
+            {
+                return;
+            }
+
+            byte[] buf = new byte[ze.Size];
+            zip.GetInputStream(ze).Read(buf, 0, (int)ze.Size);
+
+            string json = Encoding.UTF8.GetString(buf);
+            var mapper = SimpleJSON.JSON.Parse(json);
+
+            // fixme: early load object
+            List<string> keys = new List<string>();
+            foreach (var k in mapper.Keys)
+            {
+                keys.Add(k);
+            }
+            var defaultEntryKeys = keys.Select(k => k.Split('/').First()).Where(k => k != root.name);
+            var behaviourKeys = keys.Where(k => !defaultEntryKeys.Contains(k));
+
+            foreach (var key in behaviourKeys)
+            {
+                var prefabrootname = key.Split('/').First();
+                if (prefabrootname != root.name)
+                {
+                    return;
+                }
+
+                var treeTbl = key.Split('/').ToList();
+                treeTbl.RemoveAt(0);
+                string ntree = "";
+                switch (treeTbl.Count)
+                {
+                    case 0:
+                        break;
+                    case 1:
+                        ntree = treeTbl[0];
+                        break;
+                    default:
+                        ntree = treeTbl.Aggregate((a, b) => $"{a}/{b}");
+                        break;
+                }
+
+                string package = "";
+                foreach (var v in mapper[key].Values)
+                {
+                    package += $"{v.Value.ToString()}\n";
+
+                    // ここでassembly.loadしてaddcomponentする
+                    var packageName = v.Value.Split('.').Last();
+                    var dll = LoadDllCore(zip, packageName);
+                    if (dll == null)
+                    {
+                        continue;
+                    }
+
+
+                    var tt = root.transform.Find(ntree);
+                    if (tt != null)
+                    {
+                        tt.gameObject.AddComponent(dll.GetType(v));
+                    }
+                }
+            }
+        }
+
+        static System.Reflection.Assembly LoadDllCore(ZipFile zip, string dllName)
+        {
+            Debug.Log($"loadDLLCore({dllName})");
+            var dllEntry = zip.GetEntry($"{dllName}.bytes");
+            if (dllEntry == null)
+            {
+                return null;
+            }
+
+            byte[] dllbuf = new byte[dllEntry.Size];
+            zip.GetInputStream(dllEntry).Read(dllbuf, 0, (int)dllEntry.Size);
+            var dll = System.Reflection.Assembly.Load(dllbuf);
+
+            return dll;
         }
 
         public static void ResetLoaderScene()

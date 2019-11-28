@@ -12,7 +12,7 @@ namespace BundleScript
     [System.AttributeUsage(System.AttributeTargets.Parameter, Inherited = false)]
     public class CreateEnvironmentBundle : Attribute
     {
-        [MenuItem("Assets/CreateEnvritonmentBundle", false, 20)]
+        [MenuItem("Assets/BundleScript/CreateEnvritonmentBundle", false, 20)]
         static void CreateBundle()
         {
             if (Selection.activeObject != null)

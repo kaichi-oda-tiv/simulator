@@ -15,7 +15,7 @@ namespace BundleScript
     public class CreateVehicleBundle : System.Attribute
     {
         // Projectの右クリックメニューから出す
-        [MenuItem("Assets/CreateVehicleBundle", false, 20)]
+        [MenuItem("Assets/BundleScript/CreateVehicleBundle", false, 20)]
         static void CreateBundle()
         {
             if (Selection.activeGameObject != null)

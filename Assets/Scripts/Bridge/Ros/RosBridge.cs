@@ -16,6 +16,7 @@ using WebSocketSharp;
 using SimpleJSON;
 using Simulator.Bridge.Data;
 using Simulator.Bridge.Ros.LGSVL;
+using ICSharpCode.SharpZipLib.GZip;
 
 namespace Simulator.Bridge.Ros
 {
@@ -89,6 +90,8 @@ namespace Simulator.Bridge.Ros
 
         public void SendAsync(byte[] data, Action completed, string topic = null)
         {
+            var ndata = CompressGZip(data);
+            UnityEngine.Debug.Log($"{data.Length} => {ndata.Length}");
             if (completed == null)
             {
                 Socket.SendAsync(data, ok => { });
@@ -106,6 +109,47 @@ namespace Simulator.Bridge.Ros
                     pub.Count++;
                 }
             }
+        }
+
+        byte[] CompressGZip(byte[] raw)
+        {
+            byte[] r0 = null;
+            using (var memoryStream = new System.IO.MemoryStream())
+            {
+                using (var gzipStream = new GZipOutputStream(memoryStream))
+                {
+                    gzipStream.Write(raw, 0, raw.Length);
+                }
+                r0 = memoryStream.ToArray();
+            }
+            return r0;
+        }
+
+        byte[] DecompressGZip(byte[] raw)
+        {
+            var r0 = new byte[0];
+            using (var dstStream = new System.IO.MemoryStream())
+            {
+                using (var memoryStream = new System.IO.MemoryStream(raw))
+                {
+                    using (var gzipStream = new GZipInputStream(memoryStream))
+                    {
+                        byte[] wbuf = new byte[4096];
+                        int rlen = -1;
+                        do
+                        {
+                            rlen = gzipStream.Read(wbuf, 0, wbuf.Length);
+                            if (0 < rlen)
+                            {
+                                dstStream.Write(wbuf, 0, rlen);
+                            }
+
+                        } while (rlen != 0);
+                    }
+                }
+                r0 = dstStream.ToArray();
+            }
+            return r0;
         }
 
         public void AddReader<T>(string topic, Action<T> callback) where T : class
@@ -327,7 +371,7 @@ namespace Simulator.Bridge.Ros
 
         public void AddService<Argument, Result>(string topic, Func<Argument, Result> callback)
         {
-            
+
             var argtype = typeof(Argument);
             var restype = typeof(Result);
 
@@ -395,7 +439,8 @@ namespace Simulator.Bridge.Ros
 
             lock (Services)
             {
-                Services.Add(topic, Tuple.Create<Type, Type, Func<object, object>>(argtype, restype, (object argObj) => {
+                Services.Add(topic, Tuple.Create<Type, Type, Func<object, object>>(argtype, restype, (object argObj) =>
+                {
                     var argData = (Argument)converter(argObj);
                     var resData = callback(argData);
                     var resObj = convertResult(resData);
@@ -911,7 +956,7 @@ namespace Simulator.Bridge.Ros
             }
         }
 
-        object Unserialize( JSONNode node, Type type)
+        object Unserialize(JSONNode node, Type type)
         {
             if (BuiltinMessageTypes.ContainsKey(type) || type == typeof(Time))
             {

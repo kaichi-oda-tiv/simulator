@@ -36,7 +36,7 @@ namespace Simulator.Bridge.Ros
                 },
             };
         }
-        
+
         public static LGSVL.Detection2DArray ConvertFrom(Detected2DObjectData data)
         {
             return new LGSVL.Detection2DArray()
@@ -379,10 +379,10 @@ namespace Simulator.Bridge.Ros
                 header = new Header()
                 {
                     stamp = ConvertTime(data.Time),
-                    seq = data.Sequence, 
+                    seq = data.Sequence,
                     frame_id = data.Frame,
                 },
-                child_frame_id = data.ChildFrame,
+                child_frame_id = "base_link",
                 pose = new PoseWithCovariance()
                 {
                     pose = new Pose()
@@ -410,7 +410,7 @@ namespace Simulator.Bridge.Ros
                         {
                             x = 0.0,
                             y = 0.0,
-                            z = - data.AngularVelocity.y,
+                            z = -data.AngularVelocity.y,
                         }
                     },
                 }
@@ -517,6 +517,15 @@ namespace Simulator.Bridge.Ros
                     shiftDown = true;
             }
 
+            int blinker = 0;
+            if (data.lamp_cmd != null)
+            { // 
+                var l = 0 < data.lamp_cmd.l ? 1 : 0;
+                var r = 0 < data.lamp_cmd.r ? 1 : 0;
+                blinker = (l & 0x01) |
+                ((r & 0x01) << 1);
+            }
+
             return new VehicleControlData()
             {
                 Acceleration = (float)data.ctrl_cmd.linear_acceleration > 0 ? (float)data.ctrl_cmd.linear_acceleration : 0f,
@@ -526,6 +535,7 @@ namespace Simulator.Bridge.Ros
                 SteerAngle = (float)data.ctrl_cmd.steering_angle,
                 ShiftGearUp = shiftUp,
                 ShiftGearDown = shiftDown,
+                indicator = blinker, // none = 0 / left = 1 / right = 2 / hazard = 3
             };
         }
 

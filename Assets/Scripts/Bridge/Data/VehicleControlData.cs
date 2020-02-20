@@ -39,5 +39,7 @@ namespace Simulator.Bridge.Data
 
         // lgsvl
         public float? SteerInput;
+
+        public int? indicator;
     }
 }

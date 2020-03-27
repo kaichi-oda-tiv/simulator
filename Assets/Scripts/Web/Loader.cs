@@ -127,7 +127,15 @@ namespace Simulator
                 Destroy(gameObject);
                 return;
             }
-            
+
+            if (Config.Api_Ready)
+            {
+                Debug.Log($"arguments : {Config.Api_Ready}");
+                var api = UnityEngine.Object.Instantiate(this.ApiManagerPrefab);
+                api.name = "ApiManager";
+                LoaderUI.SetLoaderUIState(LoaderUI.LoaderUIStateType.READY);
+            }
+
             if (!Config.RunAsMaster)
             {
                 // TODO: change UI and do not run rest of code
@@ -488,9 +496,9 @@ namespace Simulator
                                 Instance.SimConfig.MapUrl = mapModel.Url;
 
                                 var isMasterSimulation = Instance.SimConfig.Clusters.Length > 0;
-                                var loader = 
-                                    SceneManager.LoadSceneAsync(sceneName, 
-                                        isMasterSimulation? LoadSceneMode.Additive : LoadSceneMode.Single);
+                                var loader =
+                                    SceneManager.LoadSceneAsync(sceneName,
+                                        isMasterSimulation ? LoadSceneMode.Additive : LoadSceneMode.Single);
                                 loader.completed += op =>
                                 {
                                     if (op.isDone)
@@ -696,7 +704,7 @@ namespace Simulator
                     NotificationManager.SendNotification("simulation",
                         SimulationResponse.Create(Loader.Instance.CurrentSimulation),
                         Loader.Instance.CurrentSimulation.Owner);
-                    
+
                     if (Instance.SimConfig.Clusters.Length == 0)
                     {
                         // Flash main window to let user know simulation is ready
@@ -781,7 +789,7 @@ namespace Simulator
         {
             var sim = Instantiate(Instance.SimulatorManagerPrefab);
             sim.name = "SimulatorManager";
-            
+
             //Initialize network fields
             if (Instance.SimConfig.Clusters == null)
             {
@@ -804,7 +812,7 @@ namespace Simulator
 
             //Initialize Simulator Manager
             sim.Init();
-            
+
             return sim;
         }
     }

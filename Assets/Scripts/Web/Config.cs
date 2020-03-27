@@ -25,7 +25,7 @@ namespace Simulator.Web
         public static string WebHost = "localhost";
         public static int WebPort = 8080;
 
-        public static int sessionTimeout = 60*60*24*365;
+        public static int sessionTimeout = 60 * 60 * 24 * 365;
 
         public static string ApiHost = WebHost;
         public static int ApiPort = 8181;
@@ -37,6 +37,8 @@ namespace Simulator.Web
         public static string Password;
         public static string SessionGUID;
         public static bool AgreeToLicense = false;
+
+        public static bool Api_Ready = false;
 
         public static bool Headless = false;
 
@@ -108,7 +110,7 @@ namespace Simulator.Web
         {
             AssetBundle.UnloadAllAssetBundles(false);
             List<SensorBase> prefabs = RuntimeSettings.Instance.SensorPrefabs.ToList();
-            if (prefabs.Any(s=> s == null))
+            if (prefabs.Any(s => s == null))
             {
                 Debug.LogError("Null Sensor Prefab Detected - Check RuntimeSettings SensorPrefabs List for missing Sensor Prefab");
 #if UNITY_EDITOR
@@ -323,7 +325,7 @@ namespace Simulator.Web
                         break;
                     case "--data":
                     case "-d":
-                        if(i == args.Length - 1)
+                        if (i == args.Length - 1)
                         {
                             Debug.LogError("No value for data path provided!");
                             Application.Quit(1);
@@ -333,6 +335,9 @@ namespace Simulator.Web
                         break;
                     case "--agree":
                         AgreeToLicense = true;
+                        break;
+                    case "--api_ready":
+                        Api_Ready = true;
                         break;
                     default:
                         // skip unknown arguments to allow to pass default Unity Player args

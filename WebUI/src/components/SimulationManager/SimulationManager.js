@@ -5,8 +5,8 @@
  *
  */
 
-import React, {useState, useEffect} from 'react'
-import {Column, Cell} from '@enact/ui/Layout';
+import React, { useState, useEffect } from 'react'
+import { Column, Cell } from '@enact/ui/Layout';
 import FormModal from '../Modal/FormModal';
 import PageHeader from '../PageHeader/PageHeader';
 import Alert from '../Alert/Alert';
@@ -16,19 +16,25 @@ import FormGeneral from './FormGeneral';
 import FormMapVehicles from './FormMapVehicles';
 import FormTraffic from './FormTraffic';
 import FormWeather from './FormWeather';
-import {IoIosClose} from "react-icons/io";
+import FormTestCase from './FormTestCase';
+import { IoIosClose } from "react-icons/io";
 import css from './SimulationManager.module.less';
 import appCss from '../../App/App.module.less';
-import {getList, getItem, deleteItem, postItem, editItem} from '../../APIs'
+import { getList, getItem, deleteItem, postItem, editItem } from '../../APIs'
 import axios from 'axios';
 import classnames from 'classnames';
 import { SimulationContext } from "../../App/SimulationContext";
 
-
 const simData = {
     name: null,
     cluster: 0,
+    generateResults: false,
     apiOnly: false,
+    testCaseMode: false,
+    testCaseBridge: '',
+    testCaseReportName: '',
+    runtimeTemplateType: null,
+    testCaseFile: null,
     headless: false,
     map: null,
     vehicles: [],
@@ -46,7 +52,7 @@ const simData = {
 
 const blockingAction = (status) => ['Running', 'Starting', 'Stopping'].includes(status);
 
-function SimulationManager() {
+function SimulationManager(props) {
     const [simulation, setSimulation] = useState();
     const [simulations, setSimulations] = useState();
     const [selectedSimulation, setSelectedSimulation] = useState();
@@ -54,19 +60,21 @@ function SimulationManager() {
     const [method, setMethod] = useState();
     const [formWarning, setFormWarning] = useState();
     const [modalOpen, setModalOpen] = useState();
-    const [alert, setAlert] = useState({status: false});
+    const [alert, setAlert] = useState({ status: false });
     const [isLoading, setIsLoading] = useState(true);
+
+    let onViewAnalytics = props.onViewAnalytics;
 
     let source = axios.CancelToken.source();
     let unmounted;
     useEffect(() => {
-        unmounted = false
+        unmounted = false;
         const fetchData = async () => {
             setIsLoading(true);
             const result = await getList('simulations', source.token);
             if (result.status === 200) {
                 if (!unmounted) {
-                    setSimulations(new Map(result.data.map(d => [d.id, d])))
+                    setSimulations(new Map(result.data.map(d => [d.id, d])));
                     setIsLoading(false);
                 };
             } else {
@@ -77,7 +85,7 @@ function SimulationManager() {
                     } else {
                         alertMsg = `${result.statusText}: ${result.data.error}`;
                     }
-                    setAlert({status: true, type: 'error', message: alertMsg});
+                    setAlert({ status: true, type: 'error', message: alertMsg });
                 }
             }
         };
@@ -102,9 +110,16 @@ function SimulationManager() {
                 setModalOpen(true);
                 setMethod('PUT');
             } else {
-                setAlert({status: true, type: 'error', message: `${res.statusText}: ${res.data.error}`});
+                setAlert({ status: true, type: 'error', message: `${res.statusText}: ${res.data.error}` });
             }
         });
+    }
+
+    function viewAnalytics(simulation) {
+        console.log('Clicked Viewing Analytics: ' + simulation.name + ' ( ' + simulation.id + ' )');
+        if (onViewAnalytics) {
+            onViewAnalytics(simulation);
+        }
     }
 
     function handleDelete(id) {
@@ -121,7 +136,7 @@ function SimulationManager() {
                 });
             } else {
                 setSelectedSimulation(prev => deselectSimulation ? null : prev);
-                setAlert({status: true, type: 'error', message: `${res.data.error}`});
+                setAlert({ status: true, type: 'error', message: `${res.data.error}` });
             }
         });
     }
@@ -181,31 +196,31 @@ function SimulationManager() {
         }
     }
 
-    function selectSimulation (id) {
+    function selectSimulation(id) {
         setSelectedSimulation(prev => prev === id ? null : id);
     }
 
-    function startSimulation () {
+    function startSimulation() {
         axios.post(`/simulations/${selectedSimulation}/start`, source.token).catch(err => {
             if (unmounted) return;
             if (err.response && 'data' in err.response) {
-                setAlert({status: true, alertType: 'error', alertMsg: err.response.data.error});
+                setAlert({ status: true, alertType: 'error', alertMsg: err.response.data.error });
             }
         });
     }
 
-    function stopSimulation () {
+    function stopSimulation() {
         axios.post(`/simulations/${selectedSimulation}/stop`, source.token).catch(err => {
             if (unmounted) return;
             if (err.response && 'data' in err.response) {
-                setAlert({status: true, alertType: 'error', alertMsg: err.response.data.error});
+                setAlert({ status: true, alertType: 'error', alertMsg: err.response.data.error });
             }
 
         });
     }
 
-    function alertHide () {
-        setAlert({status: false});
+    function alertHide() {
+        setAlert({ status: false });
     }
 
     function simInProgress() {
@@ -221,88 +236,94 @@ function SimulationManager() {
 
     return (
         <Column className={appCss.pageContainer}>
-        {
-            alert.status &&
-            <Alert type={alert.alertType} msg={alert.alertMsg}>
-                <IoIosClose onClick={alertHide} />
-            </Alert>
-        }
-        <Cell shrink>
-            <PageHeader title='Simulations'>
-                <button className={appCss.primaryButton} onClick={openAddMewModal}>Add new</button>
-            </PageHeader>
-        </Cell>
-        <SimulationContext.Consumer>
-        {({simulationEvents}) => {
-            if (simulations && simulationEvents && simulationEvents.data) {
-                const data = JSON.parse(simulationEvents.data);
-                if (simulations && simulations.get(data.id).status !== data.status) {
-                    simulations.set(data.id, {...data, status: data.status})
-                }
+            {
+                alert.status &&
+                <Alert type={alert.alertType} msg={alert.alertMsg}>
+                    <IoIosClose onClick={alertHide} />
+                </Alert>
             }
-            return <React.Fragment>
-                <Cell>
-                    {!isLoading &&
-                        <SimulationsTable
-                            simulations={simulations}
-                            selected={selectedSimulation}
-                            selectSimulation={selectSimulation}
-                            openEdit={openEdit}
-                            handleDelete={handleDelete}
-                        />
+            <Cell shrink>
+                <PageHeader title='Test Cases'>
+                    <button className={appCss.primaryButton} onClick={openAddMewModal}>Add new</button>
+                </PageHeader>
+            </Cell>
+            <SimulationContext.Consumer>
+                {({ simulationEvents }) => {
+                    if (simulations && simulationEvents && simulationEvents.data) {
+                        const data = JSON.parse(simulationEvents.data);
+                        if (simulations && simulations.get(data.id).status !== data.status) {
+                            simulations.set(data.id, { ...data, status: data.status })
+                        }
                     }
-                </Cell>
-                { selectedSimulation &&
-                    <Cell shrink>
-                        <SimulationPlayer
-                            open={!!selectSimulation}
-                            simulation={simulations.get(selectedSimulation)}
-                            title={simulations.get(selectedSimulation).name}
-                            status={simulations.get(selectedSimulation).status}
-                            handlePlay={startSimulation}
-                            handlePause={stopSimulation}
-                            simInProgress={simInProgress()}
-                        />
-                    </Cell>
+                    return <React.Fragment>
+                        <Cell>
+                            {!isLoading &&
+                                <SimulationsTable
+                                    simulations={simulations}
+                                    selected={selectedSimulation}
+                                    selectSimulation={selectSimulation}
+                                    openEdit={openEdit}
+                                    handleDelete={handleDelete}
+                                    viewAnalytics={viewAnalytics}
+                                />
+                            }
+                        </Cell>
+                        {selectedSimulation &&
+                            <Cell shrink>
+                                <SimulationPlayer
+                                    open={!!selectSimulation}
+                                    simulation={simulations.get(selectedSimulation)}
+                                    title={simulations.get(selectedSimulation).name}
+                                    status={simulations.get(selectedSimulation).status}
+                                    handlePlay={startSimulation}
+                                    handlePause={stopSimulation}
+                                    simInProgress={simInProgress()}
+                                />
+                            </Cell>
+                        }
+                    </React.Fragment>
                 }
-                </React.Fragment>
                 }
+            </SimulationContext.Consumer>
+            {modalOpen &&
+                <FormModal className={css.large} onModalClose={onModalClose} title={method === 'PUT' ? 'Edit' : 'Add a new Simulation'}>
+                    <Column style={{ width: '600px', height: '500px', overflowY: 'scroll' }}>
+                        <Cell shrink>
+                            <button
+                                className={classnames(css.tabButton, { [css.selected]: selectedTab === 0 })}
+                                onClick={changeFormTab}
+                                data-formtabidx={0}>General</button>
+                            <button
+                                className={classnames(css.tabButton, { [css.selected]: selectedTab === 1 })}
+                                onClick={changeFormTab}
+                                data-formtabidx={1}>Map & Vehicles</button>
+                            <button
+                                className={classnames(css.tabButton, { [css.selected]: selectedTab === 2 })}
+                                onClick={changeFormTab}
+                                data-formtabidx={2}>Traffic</button>
+                            <button
+                                className={classnames(css.tabButton, { [css.selected]: selectedTab === 3 })}
+                                onClick={changeFormTab}
+                                data-formtabidx={3}>Weather</button>
+                            <button
+                                className={classnames(css.tabButton, { [css.selected]: selectedTab === 4 })}
+                                onClick={changeFormTab}
+                                data-formtabidx={4}>Test Case</button>
+                        </Cell>
+                        <Cell style={{ padding: '10px' }}>
+                            <SimulationContext.Provider value={[simulation, setSimulation]}>
+                                {selectedTab === 0 && <FormGeneral />}
+                                {selectedTab === 1 && <FormMapVehicles />}
+                                {selectedTab === 2 && <FormTraffic />}
+                                {selectedTab === 3 && <FormWeather />}
+                                {selectedTab === 4 && <FormTestCase />}
+                            </SimulationContext.Provider>
+                        </Cell>
+                    </Column>
+                    <span className={appCss.formWarning}>{formWarning}</span>
+                </FormModal>
             }
-        </SimulationContext.Consumer>
-        { modalOpen &&
-            <FormModal className={css.large} onModalClose={onModalClose} title={method === 'PUT' ? 'Edit' : 'Add a new Simulation'}>
-                <Column style={{width: '600px', height: '500px', overflowY: 'scroll'}}>
-                    <Cell shrink>
-                        <button
-                            className={classnames(css.tabButton, {[css.selected]: selectedTab === 0})}
-                            onClick={changeFormTab}
-                            data-formtabidx={0}>General</button>
-                        <button
-                            className={classnames(css.tabButton, {[css.selected]: selectedTab === 1})}
-                            onClick={changeFormTab}
-                            data-formtabidx={1}>Map & Vehicles</button>
-                        <button
-                            className={classnames(css.tabButton, {[css.selected]: selectedTab === 2})}
-                            onClick={changeFormTab}
-                            data-formtabidx={2}>Traffic</button>
-                        <button
-                            className={classnames(css.tabButton, {[css.selected]: selectedTab === 3})}
-                            onClick={changeFormTab}
-                            data-formtabidx={3}>Weather</button>
-                    </Cell>
-                    <Cell style={{padding: '10px'}}>
-                    <SimulationContext.Provider value={[simulation, setSimulation]}>
-                        {selectedTab === 0 && <FormGeneral />}
-                        {selectedTab === 1 && <FormMapVehicles />}
-                        {selectedTab === 2 && <FormTraffic />}
-                        {selectedTab === 3 && <FormWeather />}
-                    </SimulationContext.Provider>
-                    </Cell>
-                </Column>
-                <span className={appCss.formWarning}>{formWarning}</span>
-            </FormModal>
-        }
-    </Column>)
+        </Column>)
 };
 
 export default SimulationManager;

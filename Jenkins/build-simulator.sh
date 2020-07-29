@@ -68,8 +68,8 @@ else
   CONTROLLABLES=
 fi
 
-if [ ! -z ${SIMULATOR_SENSORS+x} ]; then
-  SENSORS="-buildBundles -buildSensors ${SIMULATOR_SENSORS}"
+if [ ! -z ${SIM_SENSORS+x} ]; then
+  SENSORS="-buildBundles -buildSensors ${SIM_SENSORS}"
 else
   SENSORS=
 fi
@@ -236,6 +236,14 @@ cp /mnt/AssetBundles/Sensors/sensor_* /tmp/${BUILD_OUTPUT}/AssetBundles/Sensors
 
 mkdir -p /tmp/${BUILD_OUTPUT}/AssetBundles/NPCs
 cp -R /mnt/AssetBundles/NPCs/* /tmp/${BUILD_OUTPUT}/AssetBundles/NPCs
+
+# TODO: This supports Jenkins only. For local build, need to package FFmpeg in Build.cs
+mkdir -p /tmp/${BUILD_OUTPUT}/simulator_Data/Plugins
+if [ "$1" == "windows" ]; then
+  cp /mnt/Assets/Plugins/VideoCapture/ffmpeg/windows/ffmpeg.exe /tmp/${BUILD_OUTPUT}/simulator_Data/Plugins/ffmpeg.exe
+elif [ "$1" == "linux" ]; then
+  cp /mnt/Assets/Plugins/VideoCapture/ffmpeg/linux/ffmpeg /tmp/${BUILD_OUTPUT}/simulator_Data/Plugins/ffmpeg
+fi
 
 cd /tmp
 zip -r /mnt/${BUILD_OUTPUT}.zip ${BUILD_OUTPUT}

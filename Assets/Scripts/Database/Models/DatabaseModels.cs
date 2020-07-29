@@ -84,6 +84,7 @@ namespace Simulator.Database
         [PetaPoco.Ignore]
         public ConnectionModel[] Vehicles { get; set; }
         public bool? ApiOnly { get; set; }
+        public bool? TestCaseMode { get; set; }
         public bool? Interactive { get; set; }
         public bool? Headless { get; set; }
         public DateTime? TimeOfDay { get; set; }
@@ -95,6 +96,14 @@ namespace Simulator.Database
         public bool? UseTraffic { get; set; }
         public bool? UsePedestrians { get; set; }
         public bool? UseBicyclists { get; set; }
+        public bool? GenerateResults { get; set; }
+	    public string TestCaseReportName { get; set; }
+	    public string RuntimeTemplateType { get; set; }
+        public string TestCaseFile { get; set; }
+        public string TestCaseBridge { get; set; }
+
+        [PetaPoco.Ignore]
+        public long? CurrentTestId { get; set; }
         public string Error { get; set; }
     }
 
@@ -106,5 +115,21 @@ namespace Simulator.Database
         public long Simulation { get; set; }
         public long Vehicle { get; set; }
         public string Connection { get; set; }
+    }
+
+    [TableName("testresults")]
+    [PrimaryKey("Id", AutoIncrement = true)]
+    public class TestResultModel
+    {
+        public long Id { get; set; }
+        public DateTime Created { get; set; }
+        public string Owner { get; set; }
+        public string Name { get; set; }
+        public long Simulation { get; set; }
+        public string RuntimeTemplateType { get; set; }
+        public string Status { get; set; }
+        public bool Success { get; set; }
+        public long Iterations { get; set; }
+        public string Result { get; set; }
     }
 }

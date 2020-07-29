@@ -80,6 +80,7 @@ namespace Simulator.Web
             container.Register<IVehicleService, VehicleService>();
             container.Register<IDownloadService, DownloadService>();
             container.Register<ISimulationService, SimulationService>();
+            container.Register<ITestResultService, TestResultService>();
             container.Register<INotificationService, NotificationService>();
             container.Register<IUserService, UserService>();
             container.Register<ISessionService, SessionService>();

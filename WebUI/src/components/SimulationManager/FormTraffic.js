@@ -5,28 +5,39 @@
  *
  */
 
-import React, {useCallback, useContext, useState} from 'react'
+import React, { useContext, useState } from 'react'
 import Checkbox from '../Checkbox/Checkbox';
 import appCss from '../../App/App.module.less';
 import { SimulationContext } from "../../App/SimulationContext";
 
 function FormTraffic() {
     const [simulation, setSimulation] = useContext(SimulationContext);
-    let {seed, apiOnly, usePedestrians, useTraffic} = simulation;
+    let { seed, apiOnly, testCaseMode, usePedestrians, useTraffic } = simulation;
     const [hasSeed, setHasSeed] = useState(!!seed);
 
-    const changeHasSeed = useCallback(() => setHasSeed(prevHasSeed => {
-        const updatedHasSeed = !prevHasSeed;
-        if (updatedHasSeed) {
-            setSimulation({...simulation, seed: Math.floor(Math.random() * 0x7FFFFFFF) + 1});
-        } else {
-            setSimulation({...simulation, seed: null});
-        }
-        setHasSeed(updatedHasSeed);
-    }));
-    const changeSeed = useCallback(ev => setSimulation({...simulation, seed: ev.target.value}));
-    const changeUseTraffic = useCallback(() => setSimulation(prev => ({...simulation, useTraffic: !prev.useTraffic})));
-    const changeusePedestrians = useCallback(() => setSimulation(prev => ({...simulation, usePedestrians: !prev.usePedestrians})));
+    function changeHasSeed() {
+        setHasSeed(prevHasSeed => {
+            const updatedHasSeed = !prevHasSeed;
+            if (updatedHasSeed) {
+                setSimulation({ ...simulation, seed: Math.floor(Math.random() * 0x7FFFFFFF) + 1 });
+            } else {
+                setSimulation({ ...simulation, seed: null });
+            }
+            setHasSeed(updatedHasSeed);
+        })
+    };
+
+    function changeSeed(ev) {
+        setSimulation({ ...simulation, seed: ev.target.value });
+    }
+
+    function changeUseTraffic() {
+        setSimulation(prev => ({ ...simulation, useTraffic: !prev.useTraffic }));
+    }
+
+    function changeUsePedestrians() {
+        setSimulation(prev => ({ ...simulation, usePedestrians: !prev.usePedestrians }));
+    }
 
     return (
         <div className={appCss.formCard}>
@@ -41,12 +52,16 @@ function FormTraffic() {
                 checked={hasSeed}
                 onChange={changeHasSeed}
                 label="Use predefined random seed"
-                disabled={apiOnly} />
-            {hasSeed && <input
-                name={'seed'}
-                value={seed || ''}
-                onChange={changeSeed}
-                disabled={apiOnly} />}
+                disabled={apiOnly || testCaseMode}
+            />
+            {hasSeed &&
+                <input
+                    name={'seed'}
+                    value={seed || ''}
+                    onChange={changeSeed}
+                    disabled={apiOnly || testCaseMode}
+                />
+            }
             <br />
             <br />
             <h4 className={appCss.inputLabel}>
@@ -59,7 +74,7 @@ function FormTraffic() {
                 name={'enableNpc'}
                 checked={useTraffic}
                 label="Enabled random traffic"
-                disabled={apiOnly}
+                disabled={apiOnly || testCaseMode}
                 onChange={changeUseTraffic} />
             <br />
             <h4 className={appCss.inputLabel}>
@@ -72,8 +87,8 @@ function FormTraffic() {
                 name={'usePedestrians'}
                 checked={usePedestrians}
                 label="Enable random pedestrians"
-                disabled={apiOnly}
-                onChange={changeusePedestrians} />
+                disabled={apiOnly || testCaseMode}
+                onChange={changeUsePedestrians} />
         </div>)
 }
 

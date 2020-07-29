@@ -185,6 +185,7 @@ namespace Simulator.Database
             using (var db = Open())
             {
                 long? defaultMap = null;
+                long? goMentumMap = null;
 
                 if (info.DownloadEnvironments != null)
                 {
@@ -205,6 +206,10 @@ namespace Simulator.Database
                         if (map.Name == "BorregasAve")
                         {
                             defaultMap = map.Id;
+                        }
+                        else if (map.Name == "GoMentumDTL")
+                        {
+                            goMentumMap = map.Id;
                         }
                     }
                 }
@@ -231,11 +236,22 @@ namespace Simulator.Database
                         }
                         else if (v.Name == "Lincoln2017MKZ")
                         {
+                            AddVehicle(db, info, v, localPath, DefaultSensors.TestCase, " (A5 Test Case)", new CyberBridgeFactory().Name);
                             apolloVehicle = AddVehicle(db, info, v, localPath, DefaultSensors.Apollo50, " (Apollo 5.0)", new CyberBridgeFactory().Name);
+                        }
+                        else if (v.Name == "AWFLexus2016RXHybrid")
+                        {
+                            AddVehicle(db, info, v, localPath, DefaultSensors.Autoware, " (Autoware)", new RosBridgeFactory().Name);
                         }
                         else
                         {
-                            apolloVehicle = AddVehicle(db, info, v, localPath, DefaultSensors.Apollo50, " (Apollo 5.0)", new CyberBridgeFactory().Name);
+                            var vehicle = AddVehicle(db, info, v, localPath, DefaultSensors.Apollo50, " (Apollo 5.0)", new CyberBridgeFactory().Name);
+
+                            // Make sure Lincoln2017MKZ is the default Apollo vehicle, if present.
+                            if (!apolloVehicle.HasValue)
+                            {
+                                apolloVehicle = vehicle;
+                            }
                         }
                     }
                 }
@@ -302,6 +318,32 @@ namespace Simulator.Database
                         ApiOnly = true,
                     };
                     db.Insert(sim5);
+
+                    var sim6 = new SimulationModel()
+                    {
+                        Name = "Test Case",
+                        Cluster = 0,
+                        ApiOnly = true,
+                        TestCaseMode = true,
+                        RuntimeTemplateType = "pythonAPI",
+                        TestCaseFile = "Python/SampleTestCases/cut-in.py",
+                        TestCaseBridge = "localhost:9090",
+                        GenerateResults = true,
+                        TestCaseReportName = "Test Case Analytics",
+                    };
+                    db.Insert(sim6);
+                }
+
+                if (goMentumMap.HasValue)
+                {
+                    var sim6 = new SimulationModel()
+                    {
+                        Name = "GoMentum DTL (with Apollo 5.0)",
+                        Cluster = 0,
+                        Map = goMentumMap.Value,
+                        ApiOnly = false,
+                    };
+                    AddSimulation(db, sim6, apolloVehicle);
                 }
             }
         }

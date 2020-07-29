@@ -47,4 +47,6 @@ MonoBehaviour:
     type: 3}
   ApiManagerPrefab: {fileID: 1276181860679420229, guid: 9a72d21ca80690745a96fc08c3213358,
     type: 3}
+  TestCaseProcessManagerPrefab: {fileID: 7882444198093606488, guid: f32c3b12d4c1a1f5d9ceb2133734e0fc,
+    type: 3}
   NetworkSettings: {fileID: 11400000, guid: 0919300ef399fc541ba82f6d78c84937, type: 2}

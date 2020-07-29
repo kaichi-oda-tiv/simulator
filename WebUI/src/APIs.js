@@ -7,13 +7,15 @@
 
 import axios from 'axios';
 
-const getList = (type, cancelToken) => {
-    return axios.get(`/${type}`, {cancelToken}, {cancelToken})
+const getList = (type, cancelToken, params) => {
+    const url = type + (params ? params : '');
+    // return axios.get(`/${type}`, { cancelToken }, { cancelToken })
+    return axios.get(url, { cancelToken }, { cancelToken })
         .then(
             (response) => {
                 if (response.status !== 200) {
                     console.log('Looks like there was a problem. Status Code: ' +
-                    response.status);
+                        response.status);
                     return;
                 }
                 return response;
@@ -30,12 +32,12 @@ const getList = (type, cancelToken) => {
 }
 
 const getItem = (type, id, cancelToken) => {
-    return axios.get(`/${type}/${id}`, {cancelToken})
+    return axios.get(`/${type}/${id}`, { cancelToken })
         .then(
             (response) => {
                 if (response.status !== 200) {
                     console.log('Looks like there was a problem. Status Code: ' +
-                    response.status);
+                        response.status);
                     return;
                 }
                 return response;
@@ -48,19 +50,19 @@ const getItem = (type, id, cancelToken) => {
 
 const deleteItem = (type, id) => {
     return axios.delete(`/${type}/${id}`)
-            .then(
-                (response) => {
-                    if (response.status !== 200) {
-                        console.log('Looks like there was a problem. Status Code: ' +
+        .then(
+            (response) => {
+                if (response.status !== 200) {
+                    console.log('Looks like there was a problem. Status Code: ' +
                         response.status);
-                        return;
-                    }
-                    return response;
+                    return;
                 }
-            )
-            .catch(err => {
-                return err.response || err;
-            });
+                return response;
+            }
+        )
+        .catch(err => {
+            return err.response || err;
+        });
 }
 
 const postItem = (type, data) => {
@@ -69,7 +71,7 @@ const postItem = (type, data) => {
             (response) => {
                 if (response.status !== 200) {
                     console.log('Looks like there was a problem. Status Code: ' +
-                    response.status);
+                        response.status);
                     return;
                 }
                 return response;
@@ -86,10 +88,10 @@ const editItem = (type, id, data) => {
             (response) => {
                 if (response.status !== 200) {
                     console.log('Looks like there was a problem. Status Code: ' +
-                    response.status);
+                        response.status);
                     return;
                 }
-                return  response;
+                return response;
             }
         )
         .catch(err => {
@@ -103,10 +105,10 @@ const patchItem = (type, id, data) => {
             (response) => {
                 if (response.status !== 200) {
                     console.log('Looks like there was a problem. Status Code: ' +
-                    response.status);
+                        response.status);
                     return;
                 }
-                return  response;
+                return response;
             }
         )
         .catch(err => {

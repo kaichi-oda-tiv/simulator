@@ -45,13 +45,16 @@
 		"es6-promise": "^4.2.8",
 		"eventsource": "^1.0.7",
 		"eventsource-polyfill": "^0.9.6",
+		"intl": "^1.2.5",
 		"prop-types": "^15.6.2",
 		"react": "^16.9.0",
-		"react-datepicker": "^2.9.6",
+		"react-data-grid": "^7.0.0-canary.16",
+		"react-datepicker": "^2.14.1",
 		"react-dom": "^16.9.0",
 		"react-favicon": "0.0.16",
 		"react-icons": "^3.7.0",
 		"react-router-dom": "^5.1.0",
+		"react-tabs": "^3.1.0",
 		"url-parse": "^1.4.7"
 	}
 }

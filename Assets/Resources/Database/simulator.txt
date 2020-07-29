@@ -84,6 +84,7 @@ CREATE TABLE simulations (
 	cluster INTEGER DEFAULT NULL,
 	map INTEGER DEFAULT NULL,
 	apiOnly BOOLEAN DEFAULT FALSE,
+	testCaseMode BOOL DEFAULT FALSE,
 	interactive BOOLEAN DEFAULT FALSE,
 	headless BOOLEAN DEFAULT FALSE,
 	timeOfDay DATETIME DEFAULT NOW,
@@ -96,6 +97,11 @@ CREATE TABLE simulations (
 	useTraffic BOOL DEFAULT FALSE,
 	useBicyclists BOOL DEFAULT FALSE,
 	usePedestrians BOOL DEFAULT FALSE,
+	generateResults BOOLEAN DEFAULT FALSE,
+	testCaseReportName VARCHAR(128) DEFAULT NULL,
+	runtimeTemplateType VARCHAR(512) DEFAULT NULL,
+	testCaseFile VARCHAR(1024) DEFAULT NULL,
+	testCaseBridge VARCHAR(512) DEFAULT NULL,
 	error VARCHAR(512) DEFAULT NULL,
 
 	FOREIGN KEY (owner) REFERENCES users(username),
@@ -121,7 +127,32 @@ CREATE TABLE connections (
 CREATE INDEX connections_simulation_vehicle_index ON connections (simulation, vehicle);
 CREATE INDEX connections_vehicle_index ON connections (vehicle);
 
-PRAGMA user_version = 3;
+DROP TABLE IF EXISTS testresults;
+CREATE TABLE testresults (
+	id INTEGER PRIMARY KEY,
+	created DATETIME DEFAULT NOW,
+	name VARCHAR(128) NOT NULL,
+	owner VARCHAR(512) DEFAULT NULL,
+	runtimeTemplateType VARCHAR(512),
+	simulation INTEGER,
+  	success BOOL DEFAULT FALSE,
+	status VARCHAR(64),
+	iterations INTEGER DEFAULT 0,
+	result TEXT,
+
+	FOREIGN KEY (simulation) REFERENCES simulations(id) ON DELETE SET NULL,
+	FOREIGN KEY (owner) REFERENCES users(username)
+);
+
+CREATE INDEX testresults_id_index ON testresults (id);
+CREATE INDEX testresults_created_index ON testresults (created);
+CREATE INDEX testresults_owner_index ON testresults (owner);
+CREATE INDEX testresults_name_index ON testresults (name);
+CREATE INDEX testresults_simulation_index ON testresults (simulation);
+CREATE INDEX testresults_runtimeTemplateType_index ON testresults (runtimeTemplateType);
+CREATE INDEX testresults_success_index ON testresults (success);
+
+PRAGMA user_version = 4;
 
 PRAGMA table_info(users);
 PRAGMA table_info(sessions);
@@ -130,6 +161,7 @@ PRAGMA table_info(vehicles);
 PRAGMA table_info(clusters);
 PRAGMA table_info(simulations);
 PRAGMA table_info(connections);
+PRAGMA table_info(testresults);
 
 INSERT INTO clusters(id, name, status, ips)
 VALUES(0, 'Local Machine', 'Valid', '127.0.0.1');

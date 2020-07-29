@@ -64,6 +64,7 @@ namespace Simulator
         public string[] Clusters;
         public string ClusterName;
         public bool ApiOnly;
+        public bool TestCaseMode;
         public bool Headless;
         public bool Interactive;
         public DateTime TimeOfDay;
@@ -75,16 +76,24 @@ namespace Simulator
         public bool UseTraffic;
         public bool UsePedestrians;
         public int? Seed;
+        public string RuntimeTemplateType;
+        public string TestCaseFile;
+        public string TestCaseBridge;
+        public long? CurrentTestId;
+        public string Owner;
     }
-
     public class Loader : MonoBehaviour
     {
+        private static string ScenarioEditorSceneName = "ScenarioEditor";
+        private static bool IsInScenarioEditor;
+        
         public string Address { get; private set; }
 
         private NancyHost Server;
         public SimulationNetwork Network { get; } = new SimulationNetwork();
         public SimulatorManager SimulatorManagerPrefab;
         public ApiManager ApiManagerPrefab;
+        public TestCaseProcessManager TestCaseProcessManagerPrefab;
 
         public NetworkSettings NetworkSettings;
 
@@ -97,6 +106,8 @@ namespace Simulator
         public string LoaderScene { get; private set; }
 
         public SimulationConfig SimConfig;
+
+        private TestCaseProcessManager TCManager;
 
         // Loader object is never destroyed, even between scene reloads
         public static Loader Instance { get; private set; }
@@ -442,6 +453,7 @@ namespace Simulator
                             Clusters = db.Single<ClusterModel>(simulation.Cluster).Ips.Split(',').Where(c => c != "127.0.0.1").ToArray(),
                             ClusterName = db.Single<ClusterModel>(simulation.Cluster).Name,
                             ApiOnly = simulation.ApiOnly.GetValueOrDefault(),
+                            TestCaseMode = simulation.TestCaseMode.GetValueOrDefault(),
                             Headless = simulation.Headless.GetValueOrDefault(),
                             Interactive = simulation.Interactive.GetValueOrDefault(),
                             TimeOfDay = simulation.TimeOfDay.GetValueOrDefault(new DateTime(1980, 3, 24, 12, 0, 0)),
@@ -452,6 +464,12 @@ namespace Simulator
                             UseTraffic = simulation.UseTraffic.GetValueOrDefault(),
                             UsePedestrians = simulation.UsePedestrians.GetValueOrDefault(),
                             Seed = simulation.Seed,
+                            RuntimeTemplateType = simulation.RuntimeTemplateType,
+                            TestCaseFile = simulation.TestCaseFile,
+                            TestCaseBridge = simulation.TestCaseBridge,
+
+                            CurrentTestId = simulation.CurrentTestId,
+                            Owner = simulation.Owner,
                         };
 
                         if (simulation.Vehicles == null || simulation.Vehicles.Length == 0 || simulation.ApiOnly.GetValueOrDefault())
@@ -512,6 +530,26 @@ namespace Simulator
                             NotificationManager.SendNotification("simulation", SimulationResponse.Create(simulation), simulation.Owner);
 
                             Instance.LoaderUI.SetLoaderUIState(LoaderUI.LoaderUIStateType.READY);
+
+                            // Spawn external test case process
+                            if (Instance.SimConfig.TestCaseMode)
+                            {
+                                if (Instance.TCManager == null)
+                                {
+                                    Instance.TCManager = CreateTestCaseProcessManager();
+                                    DontDestroyOnLoad(Instance.TCManager);
+                                }
+
+                                Instance.TCManager.OnFinished += Instance.StopSimulationOnTestCaseExit;
+
+                                if (!Instance.TCManager.Spawn(simulation.RuntimeTemplateType, simulation.TestCaseFile, simulation.TestCaseBridge))
+                                {
+                                    ITestResultService testResultService = new TestResultService();
+                                    testResultService.CompleteTest(Instance.SimConfig.CurrentTestId.Value, false, 0, "[]");
+
+                                    throw new Exception("Failed to launch TestCase runtime");
+                                }
+                            }
                         }
                         else
                         {
@@ -693,6 +731,19 @@ namespace Simulator
 
             Instance.Actions.Enqueue(() =>
             {
+                if (SimulatorManager.InstanceAvailable)
+                {
+                    SimulatorManager.Instance.AnalysisManager.AnalysisSave();
+                }
+
+                if (Instance.TCManager)
+                {
+                    Debug.Log("[LOADER] StopAsync: Terminating process");
+                    // Don't bother to stop simulation on process exit
+                    Instance.TCManager.OnFinished -= Instance.StopSimulationOnTestCaseExit;
+                    Instance.TCManager.Terminate();
+                }
+
                 var simulation = Instance.CurrentSimulation;
                 using (var db = DatabaseManager.Open())
                 {
@@ -933,6 +984,28 @@ namespace Simulator
                 Instance.CurrentSimulation = null;
             }
         }
+	    
+        public static void EnterScenarioEditor()
+        {
+            if (SimulatorManager.InstanceAvailable || ApiManager.Instance)
+            {
+                Debug.LogError("Cannot enter Scenario Editor during a simulation.");
+                return;
+            }
+
+            if (!IsInScenarioEditor && !SceneManager.GetSceneByName(ScenarioEditorSceneName).isLoaded)
+            {
+                IsInScenarioEditor = true;
+                SceneManager.LoadScene(ScenarioEditorSceneName);
+            }
+        }
+
+        public static void ExitScenarioEditor()
+        {
+            IsInScenarioEditor = false;
+            if (SceneManager.GetSceneByName(ScenarioEditorSceneName).isLoaded)
+                SceneManager.LoadScene(Instance.LoaderScene);
+        }
 
         static string ByteArrayToString(byte[] ba)
         {
@@ -959,6 +1032,22 @@ namespace Simulator
             return sim;
         }
 
+        public static TestCaseProcessManager CreateTestCaseProcessManager()
+        {
+            var manager = Instantiate(Instance.TestCaseProcessManagerPrefab);
+
+            if (manager == null)
+            {
+                Debug.LogError($"[LOADER] Can't Instantiate TestCaseProcessManager");
+            }
+            else
+            {
+                manager.name = "TestCaseProcessManager";
+            }
+
+            return manager;
+        }
+
         static byte[] GetFile(ZipFile zip, string entryName)
         {
             var entry = zip.GetEntry(entryName);
@@ -966,6 +1055,33 @@ namespace Simulator
             byte[] buffer = new byte[streamSize];
             zip.GetInputStream(entry).Read(buffer, 0, streamSize);
             return buffer;
+        }
+
+        void StopSimulationOnTestCaseExit(TestCaseFinishedArgs e)
+        {
+            UnityEngine.Debug.Log($"[LOADER] Test case is finished. Stop simulation. {e.ToString()}");
+
+            // Schedule real action to stop simulation
+            Instance.Actions.Enqueue(() =>
+            {
+                if (e.Failed)
+                {
+                    if (SimulatorManager.InstanceAvailable) 
+                    {
+                        UnityEngine.Debug.Log($"[LOADER] Add TestCase fail event");
+                        var sim = SimulatorManager.Instance;
+                        sim.AnalysisManager.AddErrorEvent(e.ErrorData);
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.Log($"[LOADER] Simulation is not available. Complete test case with error");
+                        ITestResultService testResultService = new TestResultService();
+                        testResultService.CompleteTest(SimConfig.CurrentTestId.Value, false, 0, "[]");
+                    }
+                }
+
+                Loader.StopAsync();
+            });
         }
     }
 }

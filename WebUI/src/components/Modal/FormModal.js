@@ -20,18 +20,20 @@ class FormModal extends React.Component {
         title: PropTypes.string
     }
 
-    onClose = () => {
+    onClose = (event) => {
+        event.currentTarget.blur();
         this.props.onModalClose('cancel');
     }
 
-    onSave = () => {
+    onSave = (event) => {
+        event.currentTarget.blur();
         this.props.onModalClose('save');
     }
 
     onKeyDown = (event) => {
         //Checking for the "Esc" key.
         if (event.keyCode === 27) {
-            this.onClose();
+            this.onClose(event);
         }
     }
 
@@ -44,19 +46,32 @@ class FormModal extends React.Component {
     }
 
     render() {
-        const {children, title, ...rest} = this.props;
+        const { children, title, submitButtonLabel, cancelButtonLabel, ...rest } = this.props;
 
         return (
-                <Modal open {...rest}>
-                    {title && <div className={css.modalTitle}>{title}</div>}
-                    <div className={css.form}>
-                        {children}
-                        <div className={css.formFooter}>
-                            <button className={classnames(css.actionButton, css.submit)} type="submit" onClick={this.onSave}>Submit</button>
-                            <button className={classnames(css.actionButton)} onClick={this.onClose}>Cancel</button>
-                        </div>
+            <Modal open {...rest}>
+                {title && <div className={css.modalTitle}>{title}</div>}
+                <div className={css.form}>
+                    {children}
+                    <div className={css.formFooter}>
+                        <button
+                            className={classnames(css.actionButton, css.submit)}
+                            type="submit"
+                            onClick={this.onSave}
+                            style={this.props.hideCancelButton === true ? { right: '16px', left: '16px', margin: '0px auto' } : {}}
+                        >
+                            {this.props.submitButtonLabel || 'Submit'}
+                        </button>
+                        <button
+                            className={classnames(css.actionButton)}
+                            onClick={this.onClose}
+                            style={this.props.hideCancelButton === true ? { display: 'none' } : {}}
+                        >
+                            {this.props.cancelButtonLabel || 'Cancel'}
+                        </button>
                     </div>
-                </Modal>
+                </div>
+            </Modal>
         )
     }
 };

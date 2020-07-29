@@ -159,6 +159,7 @@ public class VehicleController : AgentController
 
     private void OnDisable()
     {
+        if (Config == null) return;
         SIM.LogSimulation(SIM.Simulation.VehicleStop, Config.Name, elapsedTime);
         SIM.LogSimulation(SIM.Simulation.BridgeTypeStop, Config.Bridge != null ? Config.Bridge.Name : "None", elapsedTime);
 

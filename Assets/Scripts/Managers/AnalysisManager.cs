@@ -7,12 +7,12 @@
 
 using System.Collections.Generic;
 using UnityEngine;
-using System.IO;
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Simulator.Sensors;
 using System.Collections;
+using Simulator.Database.Services;
 
 namespace Simulator.Analysis
 {
@@ -28,12 +28,12 @@ namespace Simulator.Analysis
         private AnalysisStatusType Status = AnalysisStatusType.Error;
 
         private JsonSerializerSettings SerializerSettings;
-        private string PersistantPath;
-        private string AnalysisPath;
-        private string SimulationPath;
         private SimulationConfig SimConfig;
         private List<SensorBase> Sensors = new List<SensorBase>();
         private List<Hashtable> AnalysisEvents = new List<Hashtable>();
+        private JArray Results = new JArray();
+
+        private bool Init = false;
 
         public struct CollisionTotalData
         {
@@ -43,7 +43,7 @@ namespace Simulator.Analysis
         }
         private CollisionTotalData CollisionTotals;
         private DateTime AnalysisStart;
-/*
+
         private void Awake()
         {
             SerializerSettings = new JsonSerializerSettings
@@ -51,11 +51,6 @@ namespace Simulator.Analysis
                 ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
                 Formatting = Formatting.Indented
             };
-
-            PersistantPath = Application.persistentDataPath;
-            AnalysisPath = Path.Combine(PersistantPath, "Analysis");
-            if (!Directory.Exists(AnalysisPath))
-                Directory.CreateDirectory(AnalysisPath);
         }
 
         private void Start()
@@ -69,11 +64,12 @@ namespace Simulator.Analysis
         private void OnDestroy()
         {
             AnalysisSave();
+            AnalysisSend();
         }
 
         private void FixedUpdate()
         {
-            if (SimConfig == null)// || SimConfig.CurrentTestId == null)
+            if (SimConfig == null || !SimConfig.CurrentTestId.HasValue)
             {
                 return; // Development mode or generate report false
             }
@@ -83,9 +79,14 @@ namespace Simulator.Analysis
                 sensor.OnAnalyze();
             }
         }
-*/
+
         public void AnalysisInit()
         {
+            if (Init)
+            {
+                return;
+            }
+
             Sensors.Clear();
             AnalysisEvents.Clear();
             CollisionTotals.Ego = 0;
@@ -95,7 +96,7 @@ namespace Simulator.Analysis
             AnalysisStart = DateTime.Now;
 
             SimConfig = Loader.Instance?.SimConfig;
-            if (SimConfig == null)// || SimConfig.CurrentTestId == null)
+            if (SimConfig == null || !SimConfig.CurrentTestId.HasValue)
             {
                 return; // Development mode or generate report false
             }
@@ -110,24 +111,35 @@ namespace Simulator.Analysis
                 Array.ForEach(agent.AgentGO.GetComponentsInChildren<SensorBase>(), sensorBase =>
                 {
                     Sensors.Add(sensorBase);
+
+                    if (sensorBase is VideoRecordingSensor recorder)
+                    {
+                        recorder.StartRecording();
+                    }
                 });
             }
+            Init = true;
         }
 
         public void AnalysisSave()
         {
+            if (!Init)
+            {
+                return;
+            }
+
             SimConfig = Loader.Instance?.SimConfig;
-            if (SimConfig == null)// || SimConfig.CurrentTestId == null)
+            if (SimConfig == null || !SimConfig.CurrentTestId.HasValue)
             {
                 return; // Development mode or generate report false
             }
 
-            CheckStatus();
+            if (Status != AnalysisStatusType.InProgress)
+            {
+                return;
+            }
 
-            var dt = string.Format("Analysis_{0:yyyy-MM-dd_hh-mm-sstt}", DateTime.Now);
-            SimulationPath = Path.Combine(AnalysisPath, SimConfig.Name, dt);
-            if (!Directory.Exists(SimulationPath))
-                Directory.CreateDirectory(SimulationPath);
+            SetStatus();
 
             var simulationConfigJS = JsonConvert.SerializeObject(SimConfig, SerializerSettings);
             var configJO = JObject.Parse(simulationConfigJS);
@@ -155,10 +167,17 @@ namespace Simulator.Analysis
                         JToken token = JToken.Parse(sData);
                         sensorsJO.Add(sensorBase.GetType().ToString(), token);
                     }
+
+                    if (sensorBase is VideoRecordingSensor recorder)
+                    {
+                        if (recorder.StopRecording())
+                        {
+                            agentJO.Add("VideoCapture", recorder.GetFileName());
+                        }
+                    }
                 });
                 agentJO.Add("Sensors", sensorsJO);
 
-                // events
                 JArray eventsJA = new JArray();
                 foreach (var hashtable in AnalysisEvents)
                 {
@@ -183,12 +202,26 @@ namespace Simulator.Analysis
             resultsJO.Add("Agents", agentsJA);
             resultsJO.Add("EgoTotal", SimConfig.Agents.Length);
             resultsJO.Add("CollisionTotals", JToken.Parse(JsonConvert.SerializeObject(CollisionTotals, SerializerSettings)));
-            resultsJO.Add("VideoCapture", Path.Combine(Application.dataPath, Application.isEditor ? "WebUI\\dist" : "Web", "capture.mov"));
-            configJO.Add("Results", resultsJO);
-
-            File.WriteAllText(Path.Combine(SimulationPath, "SimulationConfiguration.json"), configJO.ToString(Formatting.Indented));
-            // TODO return json to webui
             // TODO api callbacks
+            configJO.Add("Results", resultsJO);
+            Results.Add(configJO);
+            Init = false;
+        }
+
+        private void AnalysisSend()
+        {
+            if (SimConfig == null || !SimConfig.CurrentTestId.HasValue)
+            {
+                return; // Development mode or generate report false
+            }
+
+            if (Status == AnalysisStatusType.InProgress)
+            {
+                return;
+            }
+
+            ITestResultService testResultService = new TestResultService();
+            testResultService.CompleteTest(SimConfig.CurrentTestId.Value, Status == AnalysisStatusType.Success, Results.Count, Results.ToString(Formatting.None));
         }
 
         public void AddEvent(Hashtable data)
@@ -224,7 +257,17 @@ namespace Simulator.Analysis
             CollisionTotals.Ped++;
         }
 
-        private void CheckStatus()
+        public void AddErrorEvent(string error)
+        {
+            var data = new Hashtable
+            {
+                { "Error", error},
+                { "Status", AnalysisStatusType.Error },
+            };
+            AddEvent(data);
+        }
+
+        private void SetStatus()
         {
             Status = AnalysisStatusType.Success;
             foreach (var hashtable in AnalysisEvents)
@@ -233,10 +276,18 @@ namespace Simulator.Analysis
                 {
                     Status = AnalysisStatusType.Failed;
                 }
+
+                // Error always overwrites test case fail
                 if (hashtable.ContainsValue(AnalysisStatusType.Error))
                 {
-                    Status = AnalysisStatusType.Error; // Error always overwrites test case fail
+                    Status = AnalysisStatusType.Error;
+                    break;
                 }
+            }
+
+            // cycle every status to convert to string for json
+            foreach (var hashtable in AnalysisEvents)
+            {
                 if (hashtable.ContainsKey("Status"))
                 {
                     hashtable["Status"] = hashtable["Status"].ToString();

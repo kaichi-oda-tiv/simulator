@@ -101,7 +101,7 @@ namespace Simulator.Bridge.Ros
         public float[] intensities;
     }
 
-    public enum NavFixStatus
+    public enum NavFixStatus : sbyte
     {
         STATUS_NO_FIX = -1, // unable to fix position
         STATUS_FIX = 0, // unaugmented fix
@@ -109,7 +109,7 @@ namespace Simulator.Bridge.Ros
         STATUS_GBAS_FIX = 2 // with ground-based augmentation
     }
 
-    public enum GpsServisType
+    public enum GpsServisType : ushort
     {
         SERVICE_GPS = 1,
         SERVICE_GLONASS = 2,
@@ -124,7 +124,7 @@ namespace Simulator.Bridge.Ros
         public GpsServisType service;
     }
 
-    public enum CovarianceType
+    public enum CovarianceType : byte
     {
         COVARIANCE_TYPE_UNKNOWN = 0,
         COVARIANCE_TYPE_APPROXIMATED = 1,

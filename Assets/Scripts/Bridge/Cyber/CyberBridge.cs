@@ -8,7 +8,6 @@
 using System;
 using System.Text;
 using System.Linq;
-using System.Reflection;
 using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -34,15 +33,15 @@ namespace Simulator.Bridge.Cyber
 
         Socket Socket;
 
-        Dictionary<string, Tuple<Func<byte[], object>, List<Action<object>>>> Readers
-            = new Dictionary<string, Tuple<Func<byte[], object>, List<Action<object>>>>();
+        Dictionary<string, Tuple<Func<byte[], int, int, object>, List<Action<object>>>> Readers
+            = new Dictionary<string, Tuple<Func<byte[], int, int, object>, List<Action<object>>>>();
 
         ConcurrentQueue<Action> QueuedActions = new ConcurrentQueue<Action>();
 
         List<byte[]> Setup = new List<byte[]>();
 
         byte[] ReadBuffer = new byte[1024 * 1024];
-        List<byte> Buffer = new List<byte>();
+        ByteArray Buffer = new ByteArray();
 
         public Status Status { get; private set; }
 
@@ -168,10 +167,10 @@ namespace Simulator.Bridge.Cyber
                 if (!Readers.ContainsKey(topic))
                 {
                     Readers.Add(topic,
-                        Tuple.Create<Func<byte[], object>, List<Action<object>>>(
-                            msg =>
+                        Tuple.Create<Func<byte[], int, int, object>, List<Action<object>>>(
+                            (msg, offset, count) =>
                             {
-                                using (var stream = new MemoryStream(msg))
+                                using (var stream = new MemoryStream(msg, offset, count))
                                 {
                                     return converter(Serializer.Deserialize(type, stream));
                                 }
@@ -347,13 +346,13 @@ namespace Simulator.Bridge.Cyber
                 return;
             }
 
-            Buffer.AddRange(ReadBuffer.Take(read));
+            Buffer.Apppend(ReadBuffer, 0, read);
 
             int count = Buffer.Count;
 
             while (count > 0)
             {
-                byte op = Buffer[0];
+                byte op = Buffer.Data[0];
                 if (op == (byte)BridgeOp.Publish)
                 {
                     try
@@ -386,7 +385,7 @@ namespace Simulator.Bridge.Cyber
 
         int Get32le(int offset)
         {
-            return Buffer[offset + 0] | (Buffer[offset + 1] << 8) | (Buffer[offset + 2] << 16) | (Buffer[offset + 3] << 24);
+            return Buffer.Data[offset + 0] | (Buffer.Data[offset + 1] << 8) | (Buffer.Data[offset + 2] << 16) | (Buffer.Data[offset + 3] << 24);
         }
 
         bool ReceivePublish()
@@ -418,15 +417,14 @@ namespace Simulator.Bridge.Cyber
             int message_offset = offset;
             offset += message_size;
 
-            var channel = Encoding.ASCII.GetString(Buffer.Skip(channel_offset).Take(channel_size).ToArray());
+            var channel = Encoding.ASCII.GetString(Buffer.Data, channel_offset, channel_size);
 
             if (Readers.TryGetValue(channel, out var readersPair))
             {
                 var parser = readersPair.Item1;
                 var readers = readersPair.Item2;
 
-                var bytes = Buffer.Skip(message_offset).Take(message_size).ToArray();
-                var message = parser(bytes);
+                var message = parser(Buffer.Data, message_offset, message_size);
 
                 foreach (var reader in readers)
                 {
@@ -443,7 +441,7 @@ namespace Simulator.Bridge.Cyber
                 Debug.Log($"Received message on channel '{channel}' which nobody subscribed");
             }
 
-            Buffer.RemoveRange(0, offset);
+            Buffer.RemoveFirst(offset);
             return true;
         }
 

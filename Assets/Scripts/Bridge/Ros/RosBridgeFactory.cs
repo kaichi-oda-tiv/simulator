@@ -54,10 +54,4 @@ namespace Simulator.Bridge.Ros
             typeof(DetectedRadarObjectData),
         });
     }
-
-    public class Ros2BridgeFactory : RosBridgeFactoryBase
-    {
-        public override string Name => "ROS2";
-        public override IBridge Create() => new Bridge(2);
-    }
 }

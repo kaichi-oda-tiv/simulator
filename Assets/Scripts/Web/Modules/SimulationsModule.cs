@@ -62,6 +62,7 @@ namespace Simulator.Web.Modules
         public long? map;
         public ConnectionRequest[] vehicles;
         public bool? apiOnly;
+        public bool? testCaseMode;
         public bool? interactive;
         public bool? headless;
         public int? seed;
@@ -71,6 +72,11 @@ namespace Simulator.Web.Modules
         public long? cluster;
         public DateTime? timeOfDay;
         public Weather weather;
+        public bool? generateResults;
+        public string testCaseReportName;
+        public string runtimeTemplateType;
+        public string testCaseFile;
+        public string testCaseBridge;
 
         public SimulationModel ToModel(string owner)
         {
@@ -81,6 +87,7 @@ namespace Simulator.Web.Modules
                 Map = map,
                 Vehicles = vehicles?.Select(connectionRequest => ConnectionRequest.ToModel(connectionRequest)).ToArray(),
                 ApiOnly = apiOnly,
+                TestCaseMode = testCaseMode,
                 Interactive = interactive,
                 Headless = headless,
                 Cluster = cluster,
@@ -93,6 +100,11 @@ namespace Simulator.Web.Modules
                 UseTraffic = useTraffic,
                 UseBicyclists = useBicyclists,
                 UsePedestrians = usePedestrians,
+                GenerateResults = generateResults,
+                TestCaseReportName = testCaseReportName,
+                RuntimeTemplateType = runtimeTemplateType,
+                TestCaseFile = testCaseFile,
+                TestCaseBridge = testCaseBridge
             };
         }
     }
@@ -105,6 +117,7 @@ namespace Simulator.Web.Modules
         public long? Map;
         public ConnectionResponse[] Vehicles;
         public bool? ApiOnly;
+        public bool? TestCaseMode;
         public bool? Interactive;
         public bool? Headless;
         public bool? UseTraffic;
@@ -114,6 +127,11 @@ namespace Simulator.Web.Modules
         public DateTime? TimeOfDay;
         public Weather Weather;
         public int? Seed;
+        public bool? GenerateResults;
+        public string TestCaseReportName;
+        public string RuntimeTemplateType;
+        public string TestCaseFile;
+        public string TestCaseBridge;
         public string Error;
 
         public static SimulationResponse Create(SimulationModel simulation)
@@ -126,6 +144,7 @@ namespace Simulator.Web.Modules
                 Map = simulation.Map,
                 Vehicles = simulation.Vehicles?.Select(connectionModel => ConnectionResponse.Create(connectionModel)).ToArray(),
                 ApiOnly = simulation.ApiOnly,
+                TestCaseMode = simulation.TestCaseMode,
                 Interactive = simulation.Interactive,
                 Headless = simulation.Headless,
                 Cluster = simulation.Cluster,
@@ -141,6 +160,11 @@ namespace Simulator.Web.Modules
                 UseTraffic = simulation.UseTraffic,
                 UseBicyclists = simulation.UseBicyclists,
                 UsePedestrians = simulation.UsePedestrians,
+                GenerateResults = simulation.GenerateResults,
+                TestCaseReportName = simulation.TestCaseReportName,
+                RuntimeTemplateType = simulation.RuntimeTemplateType,
+                TestCaseFile = simulation.TestCaseFile,
+                TestCaseBridge = simulation.TestCaseBridge,
                 Error = simulation.Error,
             };
         }
@@ -165,6 +189,15 @@ namespace Simulator.Web.Modules
                 RuleFor(req => req.vehicles).NotNull().WithMessage("You must specify at least one vehicle")
                     .Must(vehicles => vehicles.Length > 0).WithMessage("You must specify at least one vehicle")
                     .Must(vehicles => vehicles.Length == vehicles.DistinctBy(v => new { v.Vehicle, v.Connection }).Count()).WithMessage("Vehicles must not be exact duplicates");
+            });
+
+            RuleFor(req => req.testCaseMode)
+                .NotNull().WithMessage("TestCase mode parameter must be specified");
+
+            When(req => req.testCaseMode.HasValue && req.testCaseMode.Value, () =>
+            {
+                RuleFor(req => req.runtimeTemplateType).NotEmpty().WithMessage("You must specifiy a Test Case Runtime type");
+                RuleFor(req => req.testCaseFile).NotEmpty().WithMessage("You must select Test Case");
             });
 
             When(req => req.weather != null, () =>
@@ -220,7 +253,7 @@ namespace Simulator.Web.Modules
     {
         InlineValidator<SimulationModel> startValidator = new InlineValidator<SimulationModel>();
 
-        public SimulationsModule(ISimulationService service, IUserService userService, IClusterService clusterService, IMapService mapService, IVehicleService vehicleService) : base("simulations")
+        public SimulationsModule(ISimulationService service, IUserService userService, IClusterService clusterService, IMapService mapService, IVehicleService vehicleService, ITestResultService testResultService) : base("simulations")
         {
             this.RequiresAuthentication();
 
@@ -490,6 +523,13 @@ namespace Simulator.Web.Modules
                         throw new Exception("Cannot start an invalid simulation");
                     }
 
+                    if (simulation.GenerateResults.HasValue && (bool)simulation.GenerateResults)
+                    {
+                        string testReportName = string.IsNullOrWhiteSpace(simulation.TestCaseReportName) ? simulation.Name : simulation.TestCaseReportName;
+                        long next = testResultService.Count(testReportName, this.Context.CurrentUser.Identity.Name);
+                        string nextReportName = next > 0 ? $"{testReportName} ({next})" : testReportName;
+                        simulation.CurrentTestId = testResultService.StartTest(simulation, nextReportName, this.Context.CurrentUser.Identity.Name);
+                    }
                     service.Start(simulation);
                     SIM.LogWeb(SIM.Web.WebClick, "SimulationStart");
                     return new { };

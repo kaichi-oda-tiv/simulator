@@ -5,13 +5,13 @@
  *
  */
 
-import React, {useState, useEffect, useContext, useCallback} from 'react'
+import React, { useState, useEffect, useContext, useCallback } from 'react'
 import SingleSelect from '../Select/SingleSelect';
-import {IoIosClose, IoIosAdd} from 'react-icons/io'
+import { IoIosClose, IoIosAdd } from 'react-icons/io'
 import Checkbox from '../Checkbox/Checkbox';
 import appCss from '../../App/App.module.less';
 import css from './SimulationManager.module.less';
-import {getList} from '../../APIs.js'
+import { getList } from '../../APIs.js'
 import { SimulationContext } from "../../App/SimulationContext";
 import Alert from '../Alert/Alert';
 
@@ -19,12 +19,12 @@ function FormMapVehicles() {
     const [mapList, setMapList] = useState();
     const [vehicleList, setVehicleList] = useState();
     const [simulation, setSimulation] = useContext(SimulationContext);
-    const [alert, setAlert] = useState({status: false});
-    let {map, vehicles, interactive, headless, apiOnly} = simulation;
+    const [alert, setAlert] = useState({ status: false });
+    let { map, vehicles, interactive, headless, apiOnly, testCaseMode } = simulation;
     const [formWarning, setFormWarning] = useState('');
     const [showNewVehicleField, setShowNewVehicleField] = useState(false);
-    const changeInteractive = useCallback(() => setSimulation(prev => ({...simulation, interactive: !prev.interactive})));
-    const changeMap = useCallback(ev => setSimulation({...simulation, map: parseInt(ev.target.value)}));
+    const changeInteractive = useCallback(() => setSimulation(prev => ({ ...simulation, interactive: !prev.interactive })));
+    const changeMap = useCallback(ev => setSimulation({ ...simulation, map: parseInt(ev.target.value) }));
     const changeVehicles = useCallback(ev => {
         const vidx = parseInt(ev.currentTarget.dataset.vidx);
         const val = parseInt(ev.currentTarget.value);
@@ -39,7 +39,7 @@ function FormMapVehicles() {
                     simulation: simulation.id
                 }
             }
-            return {...simulation, vehicles: newArray};
+            return { ...simulation, vehicles: newArray };
         });
         setShowNewVehicleField(false);
     });
@@ -57,7 +57,7 @@ function FormMapVehicles() {
                     simulation: simulation.id
                 }
             }
-            return {...simulation, vehicles: newArray};
+            return { ...simulation, vehicles: newArray };
         });
         setShowNewVehicleField(false);
     });
@@ -65,7 +65,7 @@ function FormMapVehicles() {
     useEffect(() => {
         // const ac = new AbortController();
         const fetchData = async () => {
-            setAlert({status: false});
+            setAlert({ status: false });
             // setIsLoading(true);
             const mapResult = await getList('maps');
             if (mapResult.status === 200) {
@@ -77,7 +77,7 @@ function FormMapVehicles() {
                 } else {
                     alertMsg = `${mapResult.statusText}: ${mapResult.data.error}`;
                 }
-                setAlert({status: true, type: 'error', message: alertMsg});
+                setAlert({ status: true, type: 'error', message: alertMsg });
             }
             const vehicleResult = await getList('vehicles');
             if (vehicleResult.status === 200) {
@@ -89,7 +89,7 @@ function FormMapVehicles() {
                 } else {
                     alertMsg = `${vehicleResult.statusText}: ${vehicleResult.data.error}`;
                 }
-                setAlert({status: true, type: 'error', message: alertMsg});
+                setAlert({ status: true, type: 'error', message: alertMsg });
             }
             // setIsLoading(false);
         };
@@ -114,13 +114,13 @@ function FormMapVehicles() {
             setSimulation(prev => {
                 prev.vehicles.splice(vidx, 1);
                 const newArray = [...prev.vehicles];
-                return {...simulation, vehicles: newArray};
+                return { ...simulation, vehicles: newArray };
             });
         }
     };
 
-    function alertHide () {
-        setAlert({status: false});
+    function alertHide() {
+        setAlert({ status: false });
     }
 
     function bridgeName(vehicleList, vehicleId) {
@@ -129,7 +129,7 @@ function FormMapVehicles() {
         }
 
         let vehicle = vehicleList.filter(v => v.id === vehicleId);
-        if (!vehicle) {
+        if (!vehicle || vehicle.length === 0) {
             return 'No Bridge';
         }
 
@@ -159,7 +159,7 @@ function FormMapVehicles() {
                     checked={interactive}
                     label="Run simulation in interactive mode"
                     name={'interactive'}
-                    disabled={apiOnly || headless}
+                    disabled={apiOnly || testCaseMode || headless}
                     onChange={changeInteractive} />
                 <br />
                 <h4 className={appCss.inputLabel}>
@@ -176,7 +176,7 @@ function FormMapVehicles() {
                     options={mapList}
                     label="name"
                     value="id"
-                    disabled={apiOnly}
+                    disabled={apiOnly || testCaseMode}
                 />
                 <br />
                 <h4 className={appCss.inputLabel}>
@@ -196,22 +196,22 @@ function FormMapVehicles() {
                                 options={vehicleList}
                                 label="name"
                                 value="id"
-                                style={{width: '45%'}}
-                                disabled={apiOnly}
+                                style={{ width: '45%' }}
+                                disabled={apiOnly || testCaseMode}
                             />
                             <input
                                 data-vidx={i}
                                 value={v.connection}
-                                style={{width: '45%'}}
+                                style={{ width: '45%' }}
                                 placeholder={bridgeName(vehicleList, v.vehicle)}
                                 onChange={changeConnection}
-                                disabled={apiOnly || bridgeName(vehicleList, v.vehicle) === bridgeName(null, null)}
+                                disabled={apiOnly || testCaseMode || bridgeName(vehicleList, v.vehicle) === bridgeName(null, null)}
                             />
                             <IoIosClose className={css.formIcons} data-vidx={i} onClick={deleteVehicleField} />
                         </div>
                     })
                 }
-                {   (vehicles.length === 0 || showNewVehicleField) &&
+                {(vehicles.length === 0 || showNewVehicleField) &&
                     <div key={'connection_'} className={css.connectionField}>
                         <SingleSelect
                             data-vidx={vehicles.length}
@@ -221,20 +221,20 @@ function FormMapVehicles() {
                             options={vehicleList}
                             label="name"
                             value="id"
-                            style={{width: '45%'}}
-                            disabled={apiOnly}
+                            style={{ width: '45%' }}
+                            disabled={apiOnly || testCaseMode}
                         />
                         <input
                             data-vidx={vehicles.length}
                             defaultValue={''}
-                            style={{width: '45%'}}
+                            style={{ width: '45%' }}
                             placeholder='Bridge connection string'
                             onChange={changeConnection}
                             disabled />
                         <IoIosClose className={css.formIcons} data-vidx={vehicles.length} onClick={deleteVehicleField} />
                     </div>
                 }
-                <IoIosAdd className={css.formIcons} onClick={addVehicleField}/><br />
+                <IoIosAdd className={css.formIcons} onClick={addVehicleField} /><br />
             </div>
             <span className={appCss.formWarning}>{formWarning}</span>
         </div>)

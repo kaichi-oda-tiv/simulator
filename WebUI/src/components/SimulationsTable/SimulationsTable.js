@@ -6,8 +6,8 @@
  */
 
 import React from 'react'
-import {FaRegEdit, FaRegWindowClose, FaCheck} from 'react-icons/fa';
-import {Cell} from '@enact/ui/Layout';
+import { FaRegEdit, FaRegWindowClose, FaCheck } from 'react-icons/fa';
+import { Cell } from '@enact/ui/Layout';
 import css from './SimulationsTable.module.less';
 import classNames from 'classnames';
 import PropTypes from 'prop-types';
@@ -32,6 +32,13 @@ class SimulationsTable extends React.Component {
         this.props.selectSimulation(id);
     }
 
+    viewAnalytics = (ev) => {
+        ev.stopPropagation();
+        const id = parseInt(ev.currentTarget.dataset.simulationid);
+        const name = ev.currentTarget.dataset.simulationname;
+        this.props.viewAnalytics({ id, name });
+    }
+
     openEdit = (ev) => {
         ev.stopPropagation();
         const id = parseInt(ev.currentTarget.dataset.simulationid);
@@ -48,18 +55,25 @@ class SimulationsTable extends React.Component {
 
     simulationList() {
         const list = [];
-        const {selected, simulations} = this.props;
+        const { selected, simulations } = this.props;
         for (const [i, simulation] of simulations) {
             const simulationStatus = simulation.status || 'unknown';
             const classes = classNames(appCss.cardItem, css.simulationItem);
-            const btnClassNames = classNames({[css.disabled]: blockingAction(simulationStatus)});
-            const checkboxClassNames = classNames(appCss.cardSetting, {[css.selected]: selected === i});
+            const btnClassNames = classNames({ [css.disabled]: blockingAction(simulationStatus) });
+            const checkboxClassNames = classNames(appCss.cardSetting, { [css.selected]: selected === i });
             list.push(
                 <div key={`${simulation}-${i}`} className={classes} data-simulationid={i} onClick={this.selectSimulation}>
                     <div className={appCss.cardName}>{simulation.name}</div>
                     <p className={appCss.cardBottom}>
                         <span className={classNames(appCss.statusDot, appCss[simulationStatus.toLowerCase()])} />
-                        <span>{simulation.status}{simulation.status == 'Invalid' && ': ' + simulation.error}</span>
+                        <span>{simulation.status}{simulation.status === 'Invalid' && ': ' + simulation.error}</span>
+                        <span
+                            className="simulationViewAnalyticsLink"
+                            data-simulationid={simulation.id}
+                            data-simulationname={simulation.name}
+                            onClick={this.viewAnalytics}>
+                            View Test Results
+                        </span>
                     </p>
                     {simulation.id === selected && <div className={checkboxClassNames} data-simulationid={simulation.id}><FaCheck className={btnClassNames} /></div>}
                     <div className={appCss.cardEdit} data-simulationid={simulation.id} onClick={this.openEdit}><FaRegEdit className={btnClassNames} /></div>
@@ -71,20 +85,20 @@ class SimulationsTable extends React.Component {
     }
 
     render() {
-        const {simulations, ...rest} = this.props;
-            delete rest.selectSimulation;
-            delete rest.handleDelete;
-            delete rest.openEdit;
+        const { simulations, ...rest } = this.props;
+        delete rest.selectSimulation;
+        delete rest.handleDelete;
+        delete rest.openEdit;
 
-            return <Cell>
-                {simulations.size > 0 ?
-                    <div className={appCss.cardItemContainer}>
-                        {this.simulationList()}
-                    </div>
-                    :
-                    <p style={{paddingLeft: '2rem'}}>Please add a new Simulation.</p>
-                }
-            </Cell>
+        return <Cell>
+            {simulations.size > 0 ?
+                <div className={appCss.cardItemContainer}>
+                    {this.simulationList()}
+                </div>
+                :
+                <p style={{ paddingLeft: '2rem' }}>Please add a new Simulation.</p>
+            }
+        </Cell>
     }
 };
 
